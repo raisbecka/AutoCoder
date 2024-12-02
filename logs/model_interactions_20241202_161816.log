@@ -1,0 +1,92 @@
+2024-12-02 16:18:16 - INFO - Starting execution from planning phase
+2024-12-02 16:18:16 - INFO - Starting Planning Phase
+2024-12-02 16:18:16 - INFO - Read user specifications
+2024-12-02 16:18:16 - INFO - Sending prompt using qwen2.5-coder:32b-instruct-q4_K_M in planning phase
+2024-12-02 16:18:16 - INFO - Prompt content: Take the below rough specifications, clean them up, and write them as you would write professional specifications 
+                             to be handed to a software developer. Take your time, and be as detailed as possible:
+
+                        -- SPECS BELOW --
+
+                        Using Python and FastAPI, you must build an API with 1 endpoint. It is defined below:
+
+1. Transcribe - Accepts an input stream of wav audio data. This endpoint will use Faster Whisper with the repo/model: "deepdml/faster-whisper-large-v3-turbo-ct2". The parameters for this model are below:
+    - Compute Type: int8_float16.
+    - Device: "cuda".
+As the audio data stream is received, the chunks should be appended to an audio_buffer - which should happen continuously until this API call is complete. FasterWhisper comes bundled with the Silero VAD model for detecting human speech, and this should be used to detect speech. When speech is FIRST detected in the incoming audio stream, a speech_detected boolean should be set to True. From this point on:
+    -   If speech is NOT detected for a continuous period of 200ms or longer, and a boolean called processed is set to false, the audio_buffer data should be transcribed by the model and stored in a result variable. The boolean processed should then be set to true.
+    -   If speech is detected before 800ms of no speech pass: processed should be set to false, and if a transcription is currently in progress, it should be canceled. Audio then continues to be received and appended to the buffer until another 200ms of no speech occurs.
+    -   If 800ms of no speech pass: the last transcription result should be returned to the user as a text response. If the transcription is still going, wait for it, and then return it once completed. At this point, it doesn't matter if speech is detected again.
+    -   If the audio input stream ends at any point, then none of the above speech detection logic applies: the audio_buffer should be passed to the model to transcribe, and - once finished - the result should be returned to the client/user.
+
+Additional API Details:
+
+- Ensure that the model is downloaded into a "models" subdirectory if it doesn't already exist, and load it from there. 
+- The model should be loaded when the API starts up, and only one instance should be used.
+- Access to this API should be by API key - which should be stored in a dict on the server. Handle authentication by API key for the endpoint - returning appropriate errors if not present or correct.
+
+
+
+2024-12-02 16:18:37 - ERROR - Error with API call: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+2024-12-02 16:18:37 - ERROR - An unexpected error occurred: Traceback (most recent call last):
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_transports\default.py", line 72, in map_httpcore_exceptions
+    yield
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_transports\default.py", line 236, in handle_request
+    resp = self._pool.handle_request(req)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_sync\connection_pool.py", line 216, in handle_request
+    raise exc from None
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_sync\connection_pool.py", line 196, in handle_request
+    response = connection.handle_request(
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_sync\connection.py", line 99, in handle_request
+    raise exc
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_sync\connection.py", line 76, in handle_request
+    stream = self._connect(request)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_sync\connection.py", line 122, in _connect
+    stream = self._network_backend.connect_tcp(**kwargs)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_backends\sync.py", line 213, in connect_tcp
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+  File "C:\Users\raisbecka\AppData\Local\Programs\Python\Python39\lib\contextlib.py", line 137, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpcore\_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectError: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 225, in send_prompt
+    response_content = model.prompt(prompt)
+  File "C:\Users\raisbecka\vscode\o1_Melvin\models\ollama.py", line 38, in prompt
+    for chunk in stream:
+  File "C:\Users\raisbecka\AppData\Local\Programs\Python\Python39\lib\site-packages\ollama\_client.py", line 80, in _stream
+    with self._client.stream(method, url, **kwargs) as r:
+  File "C:\Users\raisbecka\AppData\Local\Programs\Python\Python39\lib\contextlib.py", line 119, in __enter__
+    return next(self.gen)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_client.py", line 880, in stream
+    response = self.send(
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_client.py", line 926, in send
+    response = self._send_handling_auth(
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_client.py", line 954, in _send_handling_auth
+    response = self._send_handling_redirects(
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_client.py", line 991, in _send_handling_redirects
+    response = self._send_single_request(request)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_client.py", line 1027, in _send_single_request
+    response = transport.handle_request(request)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_transports\default.py", line 236, in handle_request
+    resp = self._pool.handle_request(req)
+  File "C:\Users\raisbecka\AppData\Local\Programs\Python\Python39\lib\contextlib.py", line 137, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "C:\Users\raisbecka\AppData\Roaming\Python\Python39\site-packages\httpx\_transports\default.py", line 89, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectError: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 531, in main
+    planning_phase(r)
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 277, in planning_phase
+    final_specs = send_prompt(prompt, "planning").raw_text
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 235, in send_prompt
+    raise Exception(error_msg)
+Exception: Error with API call: [WinError 10060] A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+

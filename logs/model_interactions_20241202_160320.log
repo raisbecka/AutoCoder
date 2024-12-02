@@ -1,0 +1,10 @@
+2024-12-02 16:03:20 - INFO - Starting execution from planning phase
+2024-12-02 16:03:20 - INFO - Starting Planning Phase
+2024-12-02 16:03:20 - INFO - Read user specifications
+2024-12-02 16:03:20 - ERROR - An unexpected error occurred: Traceback (most recent call last):
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 531, in main
+    await planning_phase(r)
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 277, in planning_phase
+    final_specs = send_prompt(prompt, "planning").raw_text
+AttributeError: 'coroutine' object has no attribute 'raw_text'
+

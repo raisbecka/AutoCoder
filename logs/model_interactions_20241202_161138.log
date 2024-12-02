@@ -1,4 +1,13 @@
-Using Python and FastAPI, you must build an API with 1 endpoint. It is defined below:
+2024-12-02 16:11:38 - INFO - Starting execution from planning phase
+2024-12-02 16:11:38 - INFO - Starting Planning Phase
+2024-12-02 16:11:38 - INFO - Read user specifications
+2024-12-02 16:11:38 - INFO - Sending prompt using qwen2.5-coder:32b-instruct-q4_K_M in planning phase
+2024-12-02 16:11:38 - INFO - Prompt content: Take the below rough specifications, clean them up, and write them as you would write professional specifications 
+                             to be handed to a software developer. Take your time, and be as detailed as possible:
+
+                        -- SPECS BELOW --
+
+                        Using Python and FastAPI, you must build an API with 1 endpoint. It is defined below:
 
 1. Transcribe - Accepts an input stream of wav audio data. This endpoint will use Faster Whisper with the repo/model: "deepdml/faster-whisper-large-v3-turbo-ct2". The parameters for this model are below:
     - Compute Type: int8_float16.
@@ -14,3 +23,25 @@ Additional API Details:
 - Ensure that the model is downloaded into a "models" subdirectory if it doesn't already exist, and load it from there. 
 - The model should be loaded when the API starts up, and only one instance should be used.
 - Access to this API should be by API key - which should be stored in a dict on the server. Handle authentication by API key for the endpoint - returning appropriate errors if not present or correct.
+
+
+
+2024-12-02 16:11:38 - ERROR - Error with API call: 'coroutine' object is not iterable
+2024-12-02 16:11:38 - ERROR - An unexpected error occurred: Traceback (most recent call last):
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 225, in send_prompt
+    response_content = await model.prompt(prompt)
+  File "C:\Users\raisbecka\vscode\o1_Melvin\models\ollama.py", line 21, in prompt
+    for chunk in stream:
+TypeError: 'coroutine' object is not iterable
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 531, in main
+    await planning_phase(r)
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 277, in planning_phase
+    final_specs = (await send_prompt(prompt, "planning")).raw_text
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 235, in send_prompt
+    raise Exception(error_msg)
+Exception: Error with API call: 'coroutine' object is not iterable
+

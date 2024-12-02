@@ -11,7 +11,8 @@ import logging
 from datetime import datetime
 from versioning import Repo
 import re
-from models import Claude, Gemini, GPT, O1
+import asyncio
+from models import Claude, Gemini, GPT, O1, Ollama
 
 # Load environment variables from .env file
 load_dotenv()
@@ -40,16 +41,16 @@ TEST_FILES_DIR = None
 # Model Configuration with provider information
 MODEL_CONFIG = {
     'planning': {
-        'company': 'openai',
-        'model': 'gpt-4o'
+        'company': 'ollama',#'openai',
+        'model': 'qwen2.5-coder:32b-instruct-q4_K_M'#'gpt-4o'
     },
     'developing': {
-        'company': 'anthropic',
-        'model': 'claude-3-5-sonnet-latest'
+        'company': 'ollama',#'anthropic',
+        'model': 'qwen2.5-coder:32b-instruct-q4_K_M'#'claude-3-5-sonnet-latest'
     },
     'testing': {
-        'company': 'anthropic',
-        'model': 'claude-3-5-sonnet-latest'
+        'company': 'ollama',#'anthropic',
+        'model': 'qwen2.5-coder:32b-instruct-q4_K_M'#'claude-3-5-sonnet-latest'
     }
 }
 
@@ -80,6 +81,8 @@ for phase, config in MODEL_CONFIG.items():
             models[phase] = GPT(config['model'])
     elif config['company'] == 'anthropic': 
         models[phase] = Claude(config['model'])
+    elif config['company'] == 'ollama': 
+        models[phase] = Ollama(config['model'])
 
 # General rules for llm responses
 rules = """
@@ -101,14 +104,13 @@ rules = """
 
 # System prompts for the models
 system_prompts = {  
-    'developing': f"""
-        <
+    'developing': """
         You are an experienced full-stack software developer specializing in writing clean, well-documented Python code. 
         You will be asked to develop a solution spanning one or more source files that adheres to a provided project specification. 
         
         Ensure you adhere to the rules below:
         {rules}""",
-    'testing': f"""You are an experienced full-stack software developer specializing in writing clean, well-documented Python code. 
+    'testing': """You are an experienced full-stack software developer specializing in writing clean, well-documented Python code. 
         You will be provided code for a Python project - along with any errors or bugs that need to be resolved, or test cases that have failed.
         For any failing test case, you must determine why it failed, and provide updated code to resolve the issue.
         
@@ -214,7 +216,7 @@ def send_prompt(prompt, phase):
         model = models[phase]
         
         # Set system prompt if available
-        sys_prompt = system_prompts.get(phase)  # Fixed: Using renamed system_prompts
+        sys_prompt = system_prompts.get(phase)
         if sys_prompt:
             model.set_system_prompt(sys_prompt)
             logging.info(f"Using system prompt: {sys_prompt}")
@@ -223,7 +225,7 @@ def send_prompt(prompt, phase):
         response_content = model.prompt(prompt)
         
         logging.info(f"Received response from {model.model_name}")
-        logging.info(f"Response content: {response_content}")
+        logging.info(f"Response content: {response_content.raw_text}")
         
         return response_content
         
@@ -253,51 +255,57 @@ def execute_command(command):
         result = f"{output}\n\n{error_msg}"
         logging.error(f"Command execution failed - see below --\n{result}\n")
         return result
+    
+def update_step(text):
+    logging.info(text)
+    console.print(f"[bold cyan]{text}[/bold cyan]")
 
 def planning_phase(repo):
     global final_specs, requirements, test_plan
     resp = None
-    logging.info("Starting Planning Phase")
-    with console.status(f"[bold blue]Planning phase... | Total API Cost: ${models['planning'].total_api_cost:.2f}[/bold blue]"):  # Fixed: Using correct model key
-        with open("user_specs.prompt", 'r') as f:
-            user_specs = f.read()
-            logging.info("Read user specifications")
+    
+    # Initiate planning phase
+    update_step("Starting Planning Phase")
 
-        # Generate clean specs from user specs
-        prompt = task_prompts['plan_specs'].format(specs=user_specs)
-        final_specs = send_prompt(prompt, "planning").raw_text
+    # Read in user specs
+    with open("user_specs.prompt", 'r') as f:
+        user_specs = f.read()
+        update_step("Read user specifications")
 
-        # Create project directory and subdirectories, and write final_specs
-        os.makedirs(PROJECT_NAME, exist_ok=True)
-        final_specs_path = os.path.join(PROJECT_NAME, "final_specs.txt")
-        with open(final_specs_path, 'w') as f:
-            f.write(final_specs)
-            logging.info(f"Wrote final specifications to {final_specs_path}")
+    # Generate clean specs from user specs
+    prompt = task_prompts['plan_specs'].format(specs=user_specs)
+    final_specs = send_prompt(prompt, "planning").raw_text
 
-        # Generate reqs from specs
-        prompt = task_prompts['plan_requirements'].format(specs=final_specs)
-        resp = send_prompt(prompt, "planning")
-        requirements = {'technical_requirements': resp.props['req']}
-        requirements_path = os.path.join(PROJECT_NAME, "technical_requirements.json")
-        requirements = json.dumps(requirements, indent=4)
-        with open(requirements_path, 'w') as f:
-            f.write(json.dumps(requirements, indent=4))
-            logging.info(f"Wrote requirements to {requirements_path}")
+    # Create project directory and subdirectories, and write final_specs
+    os.makedirs(PROJECT_NAME, exist_ok=True)
+    final_specs_path = os.path.join(PROJECT_NAME, "final_specs.txt")
+    with open(final_specs_path, 'w', encoding="utf-8") as f:
+        f.write(final_specs)
+        update_step(f"Wrote final specifications to {final_specs_path}")
 
-        # Plan tests
-        prompt = task_prompts['plan_tests'].format(reqs=requirements)
-        resp = send_prompt(prompt, "planning")
-        test_plan = {'test_plan': resp.props['test']}
-        test_plan_path = os.path.join(PROJECT_NAME, "test_plan.json")
-        test_plan = json.dumps(test_plan, indent=4)
-        with open(test_plan_path, 'w') as f:
-            f.write(json.dumps(test_plan, indent=4))
-            logging.info(f"Wrote test plan to {test_plan_path}")
+    # Generate reqs from specs
+    prompt = task_prompts['plan_requirements'].format(specs=final_specs)
+    resp = send_prompt(prompt, "planning")
+    requirements = {'technical_requirements': resp.props['req']}
+    requirements_path = os.path.join(PROJECT_NAME, "technical_requirements.json")
+    requirements = json.dumps(requirements, indent=4)
+    with open(requirements_path, 'w', encoding="utf-8") as f:
+        f.write(json.dumps(requirements, indent=4))
+        update_step(f"Wrote requirements to {requirements_path}")
 
-        sys.exit(0)
+    # Plan tests
+    prompt = task_prompts['plan_tests'].format(reqs=requirements)
+    resp = send_prompt(prompt, "planning")
+    test_plan = {'test_plan': resp.props['test']}
+    test_plan_path = os.path.join(PROJECT_NAME, "test_plan.json")
+    test_plan = json.dumps(test_plan, indent=4)
+    with open(test_plan_path, 'w', encoding="utf-8") as f:
+        f.write(json.dumps(test_plan, indent=4))
+        update_step(f"Wrote test plan to {test_plan_path}")
 
+    sys.exit(0)
 
-def developing_phase(repo, max_retries=3):
+async def developing_phase(repo, max_retries=3):
     global files, test_files, commands, SRC_DIR
     resp = None
     logging.info("Starting Developing Phase")
@@ -309,11 +317,11 @@ def developing_phase(repo, max_retries=3):
 
         # Get prompt response
         attempts = 0
-        resp = send_prompt(f"""Using the below specifications as your reference, and following the rules in the system prompt, 
-            please provide the source code for the project:\n""" + final_specs, "developing")  # Fixed: Initialize resp before while loop
+        resp = await send_prompt(f"""Using the below specifications as your reference, and following the rules in the system prompt, 
+            please provide the source code for the project:\n""" + final_specs, "developing")
         
-        while attempts < max_retries:  # Fixed: Changed condition to use attempts
-            resp = send_prompt(f"""Using the below specifications as your reference, and following the rules in the system prompt, 
+        while attempts < max_retries:
+            resp = await send_prompt(f"""Using the below specifications as your reference, and following the rules in the system prompt, 
             please provide the source code for the project:\n""" + final_specs, "developing")
 
             # End loop if files are requested
@@ -348,7 +356,7 @@ def developing_phase(repo, max_retries=3):
 
         repo.quick_add(phase="Developing")
 
-def testing_phase(repo):
+async def testing_phase(repo):
     global files, commands, SRC_DIR, TEST_FILES_DIR
     resp = None
     logging.info("Starting Testing Phase")
@@ -356,14 +364,14 @@ def testing_phase(repo):
         iteration = 1
         
         # Begin the testing and validation loop
-        while models['testing'].total_api_cost < 5.00:  # Fixed: Using correct model key
+        while models['testing'].total_api_cost < 5.00:
             
             # Test the solution
             logging.info(f"Starting test iteration {iteration}")
             test_path = os.path.join(PROJECT_NAME, "test.py")
             process = subprocess.run([TARGET_PYTHON, test_path], capture_output=True, text=True)
             process_output = process.stdout + process.stderr
-            logging.info(f"Test output: {process_output}")  # Fixed: Using process_output instead of output
+            logging.info(f"Test output: {process_output}")
 
             # IF ERROR DURING TEST PHASE:
             if process.returncode != 0:
@@ -383,7 +391,7 @@ def testing_phase(repo):
                 {source_files_content}
                 {test_files_content}
                 Please fix the issue and provide updated source files following the rules in the system prompt."""
-                resp = send_prompt(error_prompt, "testing")
+                resp = await send_prompt(error_prompt, "testing")
 
                 # Execute commands
                 for command in resp.commands:
@@ -400,7 +408,7 @@ def testing_phase(repo):
                     file_content = file_data['file_content']
                     with open(file_path, 'w') as f:
                         f.write(file_content)
-                        files.append(file_data)  # Fixed: Append file_data instead of files
+                        files.append(file_data)
                         logging.info(f"Created/Updated file: {file_path}")
 
             # IF NO ERRORS DURING TEST ITERATION; Assess test results...
@@ -433,10 +441,10 @@ def testing_phase(repo):
                 ---
                 
                 If on the other hand all the tests passed, you MUST output <ALL_TESTS_PASSED>"""
-                resp = send_prompt(prompt, "testing")
+                resp = await send_prompt(prompt, "testing")
 
                 # Make suggested changes and iterate on testing loop
-                if '<ALL_TESTS_PASSED>' not in resp.raw_resp_text:  # Fixed: Corrected tag name
+                if '<ALL_TESTS_PASSED>' not in resp.raw_text:
 
                     # Execute commands
                     for command in resp.commands:
@@ -453,7 +461,7 @@ def testing_phase(repo):
                         file_content = file_data['file_content']
                         with open(file_path, 'w') as f:
                             f.write(file_content)
-                            files.append(file_data)  # Fixed: Append file_data instead of files
+                            files.append(file_data)
                             logging.info(f"Created/Updated file: {file_path}")
 
                 # Code has run and all tests have passed - code's done!
@@ -488,11 +496,12 @@ def main():
     os.makedirs(TEST_FILES_DIR, exist_ok=True)
 
     # Format llm_rules with project-specific values
-    formatted_llm_rules = llm_rules.format(TARGET_PYTHON=TARGET_PYTHON, PROJECT_NAME=PROJECT_NAME)
+    formatted_llm_rules = rules.format(TARGET_PYTHON=TARGET_PYTHON, PROJECT_NAME=PROJECT_NAME)
     
     # Update system prompts with formatted rules
-    for phase in system_prompts:
-        system_prompts[phase] = system_prompts[phase].format(llm_rules=formatted_llm_rules)
+    for phase in list(system_prompts.keys()):
+        prompt = system_prompts[phase].format(rules=formatted_llm_rules)
+        system_prompts[phase] = prompt
     
     if start_phase == "not_specified":
         if os.path.exists(dev_dir_path) and len(os.listdir(dev_dir_path)) > 1:

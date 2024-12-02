@@ -1,0 +1,11 @@
+2024-12-02 16:00:20 - INFO - Starting execution from planning phase
+2024-12-02 16:00:20 - INFO - Starting Planning Phase
+2024-12-02 16:00:20 - ERROR - An unexpected error occurred: Traceback (most recent call last):
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 531, in main
+    await planning_phase(r)
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 268, in planning_phase
+    update_step("Starting Planning Phase")
+  File "C:\Users\raisbecka\vscode\o1_Melvin\main.py", line 261, in update_step
+    console.print(f"[bold cyan]STATUS: {text}[/bold cyan]", spinner='earth')
+TypeError: print() got an unexpected keyword argument 'spinner'
+

@@ -14,6 +14,8 @@ class Repo:
             os.remove('src/.git')
         except OSError:
             pass
+
+    def init(self):
         
         # Initialize git repo
         self.run_command(f"git -C {self.path} init")
