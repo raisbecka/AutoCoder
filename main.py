@@ -1,4 +1,5 @@
 import sys
+from textwrap import dedent
 from rich.console import Console
 import json
 import os
@@ -52,6 +53,11 @@ MODEL_CONFIG = {
     }
 }
 
+# Planning content
+final_specs = None
+requirements = None
+test_plan = None
+
 # Global dictionary to store source file contents
 files = []
 test_files = []
@@ -72,36 +78,131 @@ for phase, config in MODEL_CONFIG.items():
             models[phase] = O1(config['model'])
         else:
             models[phase] = GPT(config['model'])
-    elif config['company'] == 'anthropic':  # Fixed: Changed 'provider' to 'company'
+    elif config['company'] == 'anthropic': 
         models[phase] = Claude(config['model'])
 
 # General rules for llm responses
-llm_rules = """
-<RESPONSE_RULES>
+rules = """
+<RULES>
 1.  File Creation and Editing: If a new file needs to be created, of if changes are required to an existing file, you must output the complete, updated file enclosed within 
     <file><test_file>TRUEORFALSE</test_file><file_name>FILE_NAME</file_name><file_content>FILE_CONTENT</file_content></file> - where test_file, file_name and file_content xml elements 
-    are enclosed in a file element, TRUEORFALSE     is replaced with True if the file is a test script or False otherwise, FILE_NAME is replaced with the name of the file, and 
+    are enclosed in a file element, TRUEORFALSE is replaced with True if the file is a test script or False otherwise, FILE_NAME is replaced with the name of the file, and 
     FILE_CONTENT is replaced with the contents of the file.
 2.  Running Commands: Assume that the user is running Ubuntu with {TARGET_PYTHON} installed; If any python libraries or modules are used, they must be installed 
     prior to running any code. You must provide the commands necessary to install them enclosed within <cmd></cmd> xml element tags. Therefore, if the requests 
     library is required, you must provide the text <cmd>pip install requests</cmd>.
 3.  Project Structure: All code files and resource files directly related to the project specifications the user provided (other than for testing) must be saved in subdirectory 
-    "{PROJECT_NAME}/src". Any tests relating to this project must be saved in a file called "test.py" in the root of subdirectory "{PROJECT_NAME}". Any files required in order to run
-    any of the tests should be saved in the subdirectory "{PROJECT_NAME}/test_files". Lastly, any code (interactive or not) that must be run to generate test files (of whatever type
-    required) should be saved in a file called "pretest.py" in the root of subdirectory "{PROJECT_NAME}".
-</RESPONSE_RULES>
+    "{PROJECT_NAME}/src". Any tests relating to this project must be saved in a file called "test.py" in the root of subdirectory "{PROJECT_NAME}". 
+4.  Handling Test Files/Data: Any files required to run any of the tests should be saved in the subdirectory "{PROJECT_NAME}/test_files". Lastly, any code (interactive or not) that 
+    must be run to generate test files (of whatever type required) should be saved in a file called "pretest.py" in the root of subdirectory "{PROJECT_NAME}". The pretest.py script is 
+    an optional script; it is only required if no appropriate test files were available for a specific test.
+</RULES>
 """
 
 # System prompts for the models
-system_prompts = {  # Fixed: Renamed to avoid confusion with format operation
-    'developing': f"""You are an experienced full-stack software developer specializing in writing clean, well-documented Python code. 
-        You will be asked to develop a solution spanning one or more source files that adheres to a provided project specification. Among these
-        source files, you just also include a test.py file - which contains all the testing code for the main solution/project.
-        {llm_rules}""",
+system_prompts = {  
+    'developing': f"""
+        <
+        You are an experienced full-stack software developer specializing in writing clean, well-documented Python code. 
+        You will be asked to develop a solution spanning one or more source files that adheres to a provided project specification. 
+        
+        Ensure you adhere to the rules below:
+        {rules}""",
     'testing': f"""You are an experienced full-stack software developer specializing in writing clean, well-documented Python code. 
         You will be provided code for a Python project - along with any errors or bugs that need to be resolved, or test cases that have failed.
-        For any failing test case, the test case details will also be provided for your reference.
-        {llm_rules}""",
+        For any failing test case, you must determine why it failed, and provide updated code to resolve the issue.
+        
+        Ensure you adhere to the rules below:
+        {rules}""",
+}
+
+task_prompts = {    
+    'plan_specs': dedent("""Take the below rough specifications, clean them up, and write them as you would write professional specifications 
+                             to be handed to a software developer. Take your time, and be as detailed as possible:
+
+                        -- SPECS BELOW --
+
+                        {specs}
+
+                        """),
+
+    'plan_requirements': dedent("""Take the below technical specifications, and write a detailed, numbered list of technical requirements as 
+                                    you would for a software developer. Take your time, and be as detailed as possible. For any specific requirement,
+                                    be as detailed as possible about how it should be implemented in Python - including any specific frameworks,
+                                    protocols, principles, or approaches that are used. For each requirement, format it like below:
+                                
+                                    <req><req_id>ID</req_id><details>DETAILS</details></req> 
+                                
+                                    ...where ID cooresponds to the numbered ID of that requirement, and DETAILS cooresponds to the details of that requirement.
+
+                        -- SPECS BELOW --
+
+                        {specs}
+                        """),
+
+    'plan_tests': dedent("""Take the below technical requirements, and write a detailed, numbered list of test cases that cover all of the required 
+                         functionality outlined in the technical requirements. You may write 1 or more tests for each requirement. Each test must include
+                         the requirement that it maps to, the details of the test, and the expected result of the test. For each test, format it like below:
+
+                         <test>
+                            <test_id>TID</test_id>
+                            <req_id>RID</req_id>
+                            <test_details>DETAILS</test_details>
+                            <test_file>
+                                <file_name>FILENAME</file_name>
+                                <file_description>FILE_DESCRIPTION</file_description>
+                            </test_file>
+                            <expected_result>RESULT</expected_result>
+                         </test>
+
+                         ... where TID cooresponds to the numbered ID of that test, ID cooresponds to the numbered ID of the related requirement,
+                         DETAILS cooresponds to the details of that test, RESULT cooresponds to the expected result of that test. Also, zero or 
+                         more test files can be used for each test as required to simulate user interactions or data flow. For each included test
+                         file (if any), FILENAME should coorespond to the name of the test file, and FILE_DESCRIPTION should coorespond to a 
+                         description of what that file is to be used for (what kind of data and/or interaction to simulate or test).
+
+                        -- REQUIREMENTS BELOW --
+                         
+                        {reqs}
+                        """),
+
+    'generate_code': dedent("""Take the below list of technical requirements, and write Python code that satisfies all of them - ensuring that
+                            the code follows best practises, is well documented, and a comment is left for each technical requirement in the code mapping
+                            the requirement to the relevent code (using the requirement ID number). The source code can span multiple files if necessary:
+
+                        -- REQUIREMENTS BELOW --
+                        
+                        {requirements}
+                        """), 
+
+    'generate_tests': dedent("""Create a file called test.py which leverages the pytest framework for running tests to ensure that all the specifications are working 
+                             as expected. Adhere to the points below:
+                             
+                             - This file must contain EVERYTHING required to run the project and test it. Therefore, if seperate commands or processes need
+                             to be run (such as starting a server) prior to the tests starting, this code MUST be included at the start of the script, and launched 
+                             using subprocesses in Python. References to any subprocesses should be stored in variables for later. 
+
+                             - The test cases in this script must cover all of the included tests in the plan below.
+
+                             - There cannot be any interaction with the user while running the tests. Therefore, tests that require input from the user should instead 
+                             use test files to simulate the user input while the tests are running.
+
+                             - Once a test completes, or an error occurs during the processing of the test, a summary of that test, what it tests for, and the result of the 
+                             test should be printed to stdout.
+                             
+                             - Once the tests have completed, or an error has occured, any commands or processes that are still running must be ended gracefully. 
+                             
+                             - If after 5 seconds a process or command is still running after attempting to end it gracefully, it should be killed forcefully. 
+                             
+                             - Therefore, when the test.py script is finished, anything that ran because of that script should no longer be running. 
+
+                             See technical requirment and implementation details below:
+
+                             -- TEST PLAN --
+
+                             {test_plan}
+                             """),
+
 }
 
 def send_prompt(prompt, phase):
@@ -154,6 +255,7 @@ def execute_command(command):
         return result
 
 def planning_phase(repo):
+    global final_specs, requirements, test_plan
     resp = None
     logging.info("Starting Planning Phase")
     with console.status(f"[bold blue]Planning phase... | Total API Cost: ${models['planning'].total_api_cost:.2f}[/bold blue]"):  # Fixed: Using correct model key
@@ -161,19 +263,39 @@ def planning_phase(repo):
             user_specs = f.read()
             logging.info("Read user specifications")
 
-        with open(os.path.join(SCRIPT_PROMPTS_DIR, "generate_specs.prompt"), 'r') as f:
-            spec_prompt = f.read()
-            logging.info("Read specification prompt template")
+        # Generate clean specs from user specs
+        prompt = task_prompts['plan_specs'].format(specs=user_specs)
+        final_specs = send_prompt(prompt, "planning").raw_text
 
-        spec_prompt = spec_prompt.replace("<SPECS>", user_specs)
-        resp = send_prompt(spec_prompt, "planning")  # Fixed: Using correct phase name
-
-        # Create project directory and subdirectories
+        # Create project directory and subdirectories, and write final_specs
         os.makedirs(PROJECT_NAME, exist_ok=True)
-        final_specs_path = os.path.join(PROJECT_NAME, "final_specs.prompt")
+        final_specs_path = os.path.join(PROJECT_NAME, "final_specs.txt")
         with open(final_specs_path, 'w') as f:
-            f.write(resp)
+            f.write(final_specs)
             logging.info(f"Wrote final specifications to {final_specs_path}")
+
+        # Generate reqs from specs
+        prompt = task_prompts['plan_requirements'].format(specs=final_specs)
+        resp = send_prompt(prompt, "planning")
+        requirements = {'technical_requirements': resp.props['req']}
+        requirements_path = os.path.join(PROJECT_NAME, "technical_requirements.json")
+        requirements = json.dumps(requirements, indent=4)
+        with open(requirements_path, 'w') as f:
+            f.write(json.dumps(requirements, indent=4))
+            logging.info(f"Wrote requirements to {requirements_path}")
+
+        # Plan tests
+        prompt = task_prompts['plan_tests'].format(reqs=requirements)
+        resp = send_prompt(prompt, "planning")
+        test_plan = {'test_plan': resp.props['test']}
+        test_plan_path = os.path.join(PROJECT_NAME, "test_plan.json")
+        test_plan = json.dumps(test_plan, indent=4)
+        with open(test_plan_path, 'w') as f:
+            f.write(json.dumps(test_plan, indent=4))
+            logging.info(f"Wrote test plan to {test_plan_path}")
+
+        sys.exit(0)
+
 
 def developing_phase(repo, max_retries=3):
     global files, test_files, commands, SRC_DIR

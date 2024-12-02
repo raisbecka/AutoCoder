@@ -1,0 +1,30 @@
+Using Python and FastAPI, you must build an API with 1 endpoint. It is defined below:
+
+1. Transcribe - Accepts an input stream of wav audio data. This endpoint will use Faster Whisper with the repo/model: "deepdml/faster-whisper-large-v3-turbo-ct2". The parameters for this model are below:
+    - Compute Type: int8_float16.
+    - Device: "cuda".
+As the audio data stream is received, the chunks should be appended to an audio_buffer - which should happen continuously until this API call is complete. FasterWhisper comes bundled with the Silero VAD model for detecting human speech, and this should be used to detect speech. When speech is FIRST detected in the incoming audio stream, a speech_detected boolean should be set to True. From this point on:
+    -   If speech is NOT detected for a continuous period of 200ms or longer, and a boolean called processed is set to false, the audio_buffer data should be transcribed by the model and stored in a result variable. The boolean processed should then be set to true.
+    -   If speech is detected before 800ms of no speech pass: processed should be set to false, and if a transcription is currently in progress, it should be canceled. Audio then continues to be received and appended to the buffer until another 200ms of no speech occurs.
+    -   If 800ms of no speech pass: the last transcription result should be returned to the user as a text response. If the transcription is still going, wait for it, and then return it once completed. At this point, it doesn't matter if speech is detected again.
+    -   If the audio input stream ends at any point, then none of the above speech detection logic applies: the audio_buffer should be passed to the model to transcribe, and - once finished - the result should be returned to the client/user.
+
+Additional API Details:
+
+- Ensure that the model is downloaded into a "models" subdirectory if it doesn't already exist, and load it from there. 
+- The model should be loaded when the API starts up, and only one instance should be used.
+- Access to this API should be by API key - which should be stored in a dict on the server. Handle authentication by API key for the endpoint - returning appropriate errors if not present or correct.
+
+Testing:
+
+Absolutely any code required for the project to run - and for the below tests of API endpoints - should be saved to a tests.py file. Before the tests are run, if any initialization needs to happen, it should be run before the tests. For example, in the case of a client and server, if the server needs to be running to test it, then the server should be started in a subprocess as it normally would for testing. If any subprocess returns an error during either of the below tests, then that test is deemed a fail, and should be handled as specified by the test. In addition, any output returned by the subprocess should be piped to the parent test script and printed to the matching output stream - prefixed with a short description of the subprocess that the text is coming from enclosed in square brackets.
+
+There is a 60 second timeout setting for each of the below tests. If the test takes longer than 60 seconds, then it should be handled as a FAIL as specified by the test. 
+
+Regardless of the outcome of the tests, once they are complete, the test.py script should force kill any subprocesses it started and then finish executing.
+
+For the transcribe endpoint:
+
+    TEST 1: The test file (wav file called "test_1.wav") should be read using an appropriate library, and the data should be streamed to the server in the way the API expects. As the test client is streaming, it should also be waiting for a response at the same time. If a response is received, the audio streaming should stop immediately (if still going), and the response should be checked to ensure it matches the text from the file "result.txt" (ignoring case). If it does match, the test passes, and the test case should print "PASS" a file called TEST_1.txt in a subdirectory called "test_results" in the main project directory. If not, the test fails, and "FAIL" should be printed to a file of the same name.
+
+    TEST 2: The test file (wav file called "test_2.wav") should be read using an appropriate library, and the data should be streamed to the server in the way the API expects. As the test client is streaming, it should also be waiting for a response at the same time. If a response is received, the audio streaming should stop immediately (if still going), and the response should be checked to ensure it matches the text from the file "result.txt" (ignoring case). In this case, the response must be received and validated before the audio stream ends. If this occurs, the test passes, and the test case should print "PASS" a file called TEST_2.txt in a subdirectory called "test_results" in the main project directory. If not, the test fails, and "FAIL" should be printed to a file of the same name.

@@ -1,0 +1,15 @@
+{
+    "title": "Test File Metadata",
+    "description": "This file lists any test files that the user has provided, and describes what they are and how they can be used",
+    "files": [
+        {
+            "file_name": "test_1.wav",
+            "description": "A short WAV audio recording of a person saying \"What is the capital of France? Respond with only one word.\". The person stops talking, and the audio recording ends immediately afterward."
+        },
+        {
+            "file_name": "test_2.wav",
+            "description": "A short WAV audio recording of a person saying \"What is the capital of France? Respond with only one word.\". The person stops talking, and there is a period of silence lasting a few seconds following the end of the speech."
+        }
+    ]
+
+}

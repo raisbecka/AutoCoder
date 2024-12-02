@@ -42,38 +42,22 @@ class Model(ABC):
 # Class for storing and parsing LLM responses    
 class Response:
 
-    tag_types = [
-        'file',
-        'test_file',
-        'file_name',
-        'file_content',
-        'commamd'
-    ]
-
     def __init__(self, resp):
-        self.raw_resp = resp
-        self.files = []
-        self.commands = []
+        self.raw_text = resp
 
         # Extract commands first
-        for tag, val in Response._extract_tagged_content(resp):
-            if tag == 'command':
-                self.commands.append(val)
-            elif tag == 'file':
-                self.files.append(val)
-
+        self.props = Response._extract_tagged_content(resp)
 
     def _extract_tagged_content(content, top_level=True):
         """
         Extract content from XML-style tags, optionally returning attributes if present.
         Finds all occurrences of the specified tag in the content.
         """
-        results = []
+        results = {}
         result = {}
-        tag_types_str = "|".join(Response.tag_types)
 
         # Search for specific tags 
-        pattern = f'<({tag_types_str})>(.*?)</(\1))>'
+        pattern = f'<([\w]+)>(.*?)</(\1))>'
         matches = list(re.finditer(pattern, content, re.DOTALL))
         
         if len(matches) > 0:
@@ -85,10 +69,9 @@ class Response:
                 
                 # Recursively call method and store results in nested struct
                 if top_level:
-                    elem = {
-                        tag_name: Response._extract_tagged_content(tag_content, top_level=False)
-                    }
-                    results.append(elem)
+                    if tag_name not in results:
+                        results[tag_name] = []
+                    results['tag_name'].append(Response._extract_tagged_content(tag_content, top_level=False))
                 else:
                     result[tag_name] = Response._extract_tagged_content(tag_content, top_level=False)
                 
