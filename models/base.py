@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import re
+from typing import AsyncGenerator
 from pydantic import BaseModel
 
 class Model(ABC):
@@ -23,7 +24,7 @@ class Model(ABC):
         self.json_schema = schema_class
     
     @abstractmethod
-    def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:
+    async def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:
         """Send a prompt to the model and return the response."""
         pass
     
@@ -57,7 +58,7 @@ class Response:
         result = {}
 
         # Search for specific tags 
-        pattern = f'<([\w]+)>(.*?)</(\1))>'
+        pattern = f'<([\w]+)>(.*?)<\/(\1)>'
         matches = list(re.finditer(pattern, content, re.DOTALL))
         
         if len(matches) > 0:
@@ -80,4 +81,4 @@ class Response:
 
         # Reached end of recursive document parsing
         else:
-            return content    
+            return content

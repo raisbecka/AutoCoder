@@ -1,5 +1,6 @@
 from anthropic import Anthropic
 import os
+from typing import AsyncGenerator
 from .base import Model, Response
 
 class Claude(Model):
@@ -15,10 +16,16 @@ class Claude(Model):
                 'completion_tokens': 0.000015  # $15 per mil
             }
     
-    def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:
-        """Send a prompt to Claude and return the response."""
-        messages = []
-        
+    async def prompt(self, prompt_text: str, use_json_schema: bool = False, ) -> str:
+        """Send a prompt to Claude and return the complete response."""
+        full_response = ""
+        async for chunk in self.stream_prompt(prompt_text, use_json_schema):
+            print(f"{chunk} ", end="")
+            full_response += chunk
+        return Response(full_response)
+
+    async def stream_prompt(self, prompt_text: str, use_json_schema: bool = False) -> AsyncGenerator[str, None]:
+        """Stream responses from Claude."""
         # Add system prompt if set
         if self.system_prompt:
             prompt_text = f"{self.system_prompt}\n\n{prompt_text}"
@@ -27,15 +34,16 @@ class Claude(Model):
         if use_json_schema and self.json_schema:
             prompt_text = f"{prompt_text}\n\nPlease format your response according to this JSON schema:\n{self.json_schema.schema_json()}"
         
-        response = self.client.messages.create(
+        stream = await self.client.messages.create(
             model=self.model_name,
             max_tokens=4096,
-            messages=[{"role": "user", "content": prompt_text}]
+            messages=[{"role": "user", "content": prompt_text}],
+            stream=True
         )
         
-        # Calculate costs if usage information is available
-        if hasattr(response, 'usage'):
-            usage = response.usage
-            self.calculate_usage_costs(usage.input_tokens, usage.output_tokens)
-        
-        return Response(response.content[0].text)
+        async for chunk in stream:
+            if chunk.content:
+                yield chunk.content[0].text
+
+        # Note: Usage information is not available in streaming mode
+        # We might need to implement token counting separately if needed

@@ -1,5 +1,6 @@
 from openai import OpenAI
 import os
+from typing import AsyncGenerator
 from .base import Model, Response
 
 class GPT(Model):
@@ -20,8 +21,15 @@ class GPT(Model):
                 'completion_tokens': 0.000010  # $10.00 per mil
             }
     
-    def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:
-        """Send a prompt to GPT and return the response."""
+    async def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:
+        """Send a prompt to GPT and return the complete response."""
+        full_response = ""
+        async for chunk in self.stream_prompt(prompt_text, use_json_schema):
+            full_response += chunk
+        return Response(full_response)
+
+    async def stream_prompt(self, prompt_text: str, use_json_schema: bool = False) -> AsyncGenerator[str, None]:
+        """Stream responses from GPT."""
         messages = []
         
         # Add system prompt if set
@@ -34,13 +42,15 @@ class GPT(Model):
         
         messages.append({"role": "user", "content": prompt_text})
         
-        response = self.client.chat.completions.create(
+        stream = await self.client.chat.completions.create(
             model=self.model_name,
-            messages=messages
+            messages=messages,
+            stream=True
         )
         
-        # Calculate costs
-        usage = response.usage
-        self.calculate_usage_costs(usage.prompt_tokens, usage.completion_tokens)
+        async for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                yield chunk.choices[0].delta.content
         
-        return Response(response.choices[0].message.content)
+        # Note: Usage information is not available in streaming mode
+        # We might need to implement token counting separately if needed
