@@ -1,17 +1,14 @@
-from ollama import Client
+import sys
+from openai import OpenAI
+import os
+from typing import AsyncGenerator
 from .base import Model, Response
 
-class Ollama(Model):
-    def __init__(self, model_name: str = "qwen2.5-coder:32b-instruct-q4_K_M"):
+class VLLM(Model):
+    def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"):
         super().__init__()
-        self.client = Client(host='http://10.243.243.236:11434')
+        self.client = OpenAI(base_url='http://10.243.243.236:11434/v1')
         self.model_name = model_name
-        
-        # Set API costs - Ollama is typically free/local so setting to 0
-        self.api_costs = {
-            'prompt_tokens': 0.0,
-            'completion_tokens': 0.0
-        }
     
     def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:
         """Send a prompt to Ollama and return the complete response."""
@@ -29,18 +26,18 @@ class Ollama(Model):
         messages.append({"role": "user", "content": prompt_text})
         
         # Stream the response from Ollama
-        stream = self.client.chat(
+        stream = self.client.chat.completions.create(
             model=self.model_name,
             messages=messages,
+            max_tokens=5000,
             stream=True
         )
 
         for chunk in stream:
-            if chunk['message']['content'] is not None:
-                text = chunk['message']['content']
+            if chunk.choices[0].delta.content is not None:
+                text = chunk.choices[0].delta.content
                 print(text, end="")
                 full_response += text
 
         return Response(full_response)
-
 

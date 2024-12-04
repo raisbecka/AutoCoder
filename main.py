@@ -12,13 +12,16 @@ from datetime import datetime
 from versioning import Repo
 import re
 import asyncio
-from models import Claude, Gemini, GPT, O1, Ollama
+from models import Claude, Gemini, GPT, O1, Ollama, VLLM
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Set up logging
 os.makedirs('logs', exist_ok=True)
+for f in os.listdir('logs'):
+    if f.endswith('.log'):
+        os.remove(os.path.join('logs', f))
 logging.basicConfig(
     filename=f'logs/model_interactions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
     level=logging.INFO,
@@ -41,8 +44,8 @@ TEST_FILES_DIR = None
 # Model Configuration with provider information
 MODEL_CONFIG = {
     'planning': {
-        'company': 'ollama',#'openai',
-        'model': 'qwen2.5-coder:32b-instruct-q4_K_M'#'gpt-4o'
+        'company': 'vllm',#'ollama',#'openai',
+        'model': 'Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4'#'qwen2.5-coder:32b-instruct-q4_K_M'#'gpt-4o'
     },
     'developing': {
         'company': 'ollama',#'anthropic',
@@ -83,6 +86,8 @@ for phase, config in MODEL_CONFIG.items():
         models[phase] = Claude(config['model'])
     elif config['company'] == 'ollama': 
         models[phase] = Ollama(config['model'])
+    elif config['company'] == 'vllm': 
+        models[phase] = VLLM(config['model'])
 
 # General rules for llm responses
 rules = """
@@ -122,46 +127,79 @@ task_prompts = {
     'plan_specs': dedent("""Take the below rough specifications, clean them up, and write them as you would write professional specifications 
                              to be handed to a software developer. Take your time, and be as detailed as possible:
 
-                        -- SPECS BELOW --
+                            -- SPECS BELOW --
 
-                        {specs}
+                            {specs}
 
-                        """),
+                            """),
 
-    'plan_requirements': dedent("""Take the below technical specifications, and write a detailed, numbered list of technical requirements as 
+    'plan_requirements': dedent("""Take the below technical specifications, and write a numbered list of technical requirements as 
                                     you would for a software developer. Take your time, and be as detailed as possible. For any specific requirement,
                                     be as detailed as possible about how it should be implemented in Python - including any specific frameworks,
                                     protocols, principles, or approaches that are used. For each requirement, format it like below:
                                 
                                     <req><req_id>ID</req_id><details>DETAILS</details></req> 
                                 
-                                    ...where ID cooresponds to the numbered ID of that requirement, and DETAILS cooresponds to the details of that requirement.
+                                    ...where ID cooresponds to the numbered ID of that requirement (just an integer - no alpha characters), and 
+                                    DETAILS cooresponds to the details of that requirement.
+                                
 
-                        -- SPECS BELOW --
+                                    -- SPECS BELOW --
 
-                        {specs}
-                        """),
+                                    {specs}
+                                    """),
 
-    'plan_tests': dedent("""Take the below technical requirements, and write a detailed, numbered list of test cases that cover all of the required 
-                         functionality outlined in the technical requirements. You may write 1 or more tests for each requirement. Each test must include
-                         the requirement that it maps to, the details of the test, and the expected result of the test. For each test, format it like below:
+    'expand_requirements': dedent("""For the high-level technical requirments below, expand on each - including as much details as possible. This should
+                                    include an inplementation example detailing how the code could be written to handle this requirement. The expanded,
+                                    detailed requirements should include everything that a junior software developer would need to know to implement
+                                    the requirement. Take your time, and be as detailed as possible - including any specific frameworks, protocols, 
+                                    principles, or approaches that are used. For each requirement, format it like below:
+                                
+                                    <req><req_id>ID</req_id><details>DETAILS</details><implementation_details>IMP_EX</implementation_details></req> 
+                                
+                                    ...where ID cooresponds to the numbered ID of that requirement (just an integer - no alpha characters), DETAILS 
+                                    cooresponds to the details of that requirement, and IMP_EX cooresponds to the implementation example code for 
+                                    the requirement.
+                                  
+                                    For each detailed, expanded requirement, the ID MUST match the previous ID of the associated, below high-level 
+                                    requirement.                                
+
+                                    -- SPECS BELOW --
+
+                                    {requirements}
+                                    """),
+
+    'plan_tests': dedent("""Take the below technical requirements, and write a detailed, numbered list of test cases that cover all of the different
+                         types of user interaction that may occur - ensuring that the outcome in each case conforms to the technical requirements.
+                         You may write 1 or more tests for each requirement. Each test must include the requirement that it maps to, the details of 
+                         the test, and the expected result of the test. For each test, format it like below:
 
                          <test>
                             <test_id>TID</test_id>
                             <req_id>RID</req_id>
                             <test_details>DETAILS</test_details>
-                            <test_file>
+                            <test_data>
                                 <file_name>FILENAME</file_name>
                                 <file_description>FILE_DESCRIPTION</file_description>
-                            </test_file>
+                            </test_data>
                             <expected_result>RESULT</expected_result>
                          </test>
 
                          ... where TID cooresponds to the numbered ID of that test, ID cooresponds to the numbered ID of the related requirement,
                          DETAILS cooresponds to the details of that test, RESULT cooresponds to the expected result of that test. Also, zero or 
-                         more test files can be used for each test as required to simulate user interactions or data flow. For each included test
-                         file (if any), FILENAME should coorespond to the name of the test file, and FILE_DESCRIPTION should coorespond to a 
-                         description of what that file is to be used for (what kind of data and/or interaction to simulate or test).
+                         more test files can be used for each test as required to simulate user interactions or data flow. 
+                         
+                         For the test_data elements, these are files that are meant to be used to simulate data flow or user interaction for the 
+                         test case ONLY IF the data cannot be programmatically generated during the test. For example, if a specific video file is 
+                         required in order to run a test. Some tests may not require test data (for example, pinging a server), and in this case a 
+                         test file is obviously not required. Also, if the test data can be generated by the test case/script, then a test data file
+                         is not required also. 
+                         
+                         If a test data file is needed though, FILENAME should coorespond to the name of the test data file, and FILE_DESCRIPTION 
+                         should coorespond to a description of what that file is to be used for (what kind of data and/or interaction to simulate or 
+                         test).
+
+                         If no test data files are required, do NOT include this element along with the rest of the elements.
 
                         -- REQUIREMENTS BELOW --
                          
@@ -272,36 +310,74 @@ def planning_phase(repo):
         user_specs = f.read()
         update_step("Read user specifications")
 
-    # Generate clean specs from user specs
-    prompt = task_prompts['plan_specs'].format(specs=user_specs)
-    final_specs = send_prompt(prompt, "planning").raw_text
-
-    # Create project directory and subdirectories, and write final_specs
+    # Create project directory
     os.makedirs(PROJECT_NAME, exist_ok=True)
+
+    # Check for existing final specs
     final_specs_path = os.path.join(PROJECT_NAME, "final_specs.txt")
-    with open(final_specs_path, 'w', encoding="utf-8") as f:
-        f.write(final_specs)
-        update_step(f"Wrote final specifications to {final_specs_path}")
+    if os.path.exists(final_specs_path):
+        with open(final_specs_path, 'r', encoding="utf-8") as f:
+            final_specs = f.read()
+            update_step(f"Read existing final specifications from {final_specs_path}")
+    else:
+        # Generate clean specs from user specs
+        prompt = task_prompts['plan_specs'].format(specs=user_specs)
+        final_specs = send_prompt(prompt, "planning").raw_text
+        
+        # Write final specs
+        with open(final_specs_path, 'w', encoding="utf-8") as f:
+            f.write(final_specs)
+            update_step(f"Wrote final specifications to {final_specs_path}")
 
-    # Generate reqs from specs
-    prompt = task_prompts['plan_requirements'].format(specs=final_specs)
-    resp = send_prompt(prompt, "planning")
-    requirements = {'technical_requirements': resp.props['req']}
+    # Check for existing requirements
     requirements_path = os.path.join(PROJECT_NAME, "technical_requirements.json")
-    requirements = json.dumps(requirements, indent=4)
-    with open(requirements_path, 'w', encoding="utf-8") as f:
-        f.write(json.dumps(requirements, indent=4))
-        update_step(f"Wrote requirements to {requirements_path}")
+    if os.path.exists(requirements_path):
+        with open(requirements_path, 'r', encoding="utf-8") as f:
+            requirements = f.read()
+            update_step(f"Read existing requirements from {requirements_path}")
+    else:
+        
+        # Generate high-level reqs from specs
+        prompt = task_prompts['plan_requirements'].format(specs=final_specs)
+        resp = send_prompt(prompt, "planning")
+        requirements = {'technical_requirements': resp.props['req']}
 
-    # Plan tests
-    prompt = task_prompts['plan_tests'].format(reqs=requirements)
-    resp = send_prompt(prompt, "planning")
-    test_plan = {'test_plan': resp.props['test']}
+        # Expand on requirements 4 at a time to get greater details for whole list
+        expanded_requirements = []
+        req_chunk_size = 4
+        requirements = resp.props['req']
+        for i in range(0, len(requirements), req_chunk_size):
+            try:
+                requirement_chunk = {'requirements': json.dumps(requirements[i:i+4], indent=4)}
+            except:
+                requirement_chunk = {'requirements': json.dumps(requirements[i:], indent=4)}
+
+            # Generate low-level reqs from specs
+            prompt = task_prompts['expand_requirements'].format(requirements=requirement_chunk)
+            resp = send_prompt(prompt, "planning")
+            expanded_requirements = expanded_requirements + resp.props['req']
+
+        # Write detailed requirements to file
+        requirements = {'requirements': expanded_requirements}
+        with open(requirements_path, 'w', encoding="utf-8") as f:
+            f.write(json.dumps(requirements, indent=4))
+            update_step(f"Wrote requirements to {requirements_path}")
+
+    # Check for existing test plan
     test_plan_path = os.path.join(PROJECT_NAME, "test_plan.json")
-    test_plan = json.dumps(test_plan, indent=4)
-    with open(test_plan_path, 'w', encoding="utf-8") as f:
-        f.write(json.dumps(test_plan, indent=4))
-        update_step(f"Wrote test plan to {test_plan_path}")
+    if os.path.exists(test_plan_path):
+        with open(test_plan_path, 'r', encoding="utf-8") as f:
+            test_plan = f.read()
+            update_step(f"Read existing test plan from {test_plan_path}")
+    else:
+        # Plan tests
+        prompt = task_prompts['plan_tests'].format(reqs=requirements)
+        resp = send_prompt(prompt, "planning")
+        test_plan = {'test_plan': resp.props['test']}
+        test_plan = json.dumps(test_plan, indent=4)
+        with open(test_plan_path, 'w', encoding="utf-8") as f:
+            f.write(test_plan)
+            update_step(f"Wrote test plan to {test_plan_path}")
 
     sys.exit(0)
 

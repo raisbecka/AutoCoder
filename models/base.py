@@ -58,7 +58,7 @@ class Response:
         result = {}
 
         # Search for specific tags 
-        pattern = f'<([\w]+)>(.*?)<\/(\1)>'
+        pattern = r'<([\w]+)>(.*?)<\/(\1)>'
         matches = list(re.finditer(pattern, content, re.DOTALL))
         
         if len(matches) > 0:
@@ -72,7 +72,7 @@ class Response:
                 if top_level:
                     if tag_name not in results:
                         results[tag_name] = []
-                    results['tag_name'].append(Response._extract_tagged_content(tag_content, top_level=False))
+                    results[tag_name].append(Response._extract_tagged_content(tag_content, top_level=False))
                 else:
                     result[tag_name] = Response._extract_tagged_content(tag_content, top_level=False)
                 
