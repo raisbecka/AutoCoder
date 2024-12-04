@@ -7,7 +7,7 @@ from .base import Model, Response
 class VLLM(Model):
     def __init__(self, model_name: str = "Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4"):
         super().__init__()
-        self.client = OpenAI(base_url='http://10.243.243.236:11434/v1')
+        self.client = OpenAI(base_url='http://192.168.50.13:11434/v1')
         self.model_name = model_name
     
     def prompt(self, prompt_text: str, use_json_schema: bool = False) -> str:

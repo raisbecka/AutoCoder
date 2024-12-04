@@ -45,11 +45,11 @@ TEST_FILES_DIR = None
 MODEL_CONFIG = {
     'planning': {
         'company': 'vllm',#'ollama',#'openai',
-        'model': 'Qwen/Qwen2.5-Coder-14B-Instruct-GPTQ-Int4'#'qwen2.5-coder:32b-instruct-q4_K_M'#'gpt-4o'
+        'model': 'Qwen/Qwen2.5-Coder-32B-Instruct'#'qwen2.5-coder:32b-instruct-q4_K_M'#'gpt-4o'
     },
     'developing': {
-        'company': 'ollama',#'anthropic',
-        'model': 'qwen2.5-coder:32b-instruct-q4_K_M'#'claude-3-5-sonnet-latest'
+        'company': 'vllm',#'ollama',#'openai',
+        'model': 'Qwen/Qwen2.5-Coder-32B-Instruct'#'qwen2.5-coder:32b-instruct-q4_K_M'#'gpt-4o'
     },
     'testing': {
         'company': 'ollama',#'anthropic',
@@ -133,17 +133,17 @@ task_prompts = {
 
                             """),
 
-    'plan_requirements': dedent("""Take the below technical specifications, and write a numbered list of technical requirements as 
-                                    you would for a software developer. Take your time, and be as detailed as possible. For any specific requirement,
-                                    be as detailed as possible about how it should be implemented in Python - including any specific frameworks,
-                                    protocols, principles, or approaches that are used. For each requirement, format it like below:
+    'plan_requirements': dedent("""Take the below technical specifications, and write a numbered list of clear, concise technical requirements as 
+                                    you would for a software developer. Take your time, and be as detailed as possible. For each requirement, 
+                                    format it like below:
                                 
                                     <req><req_id>ID</req_id><details>DETAILS</details></req> 
                                 
                                     ...where ID cooresponds to the numbered ID of that requirement (just an integer - no alpha characters), and 
                                     DETAILS cooresponds to the details of that requirement.
-                                
 
+                                    It is absolutely essential that each requirement maps directly to the below text, and no requirements are missed.
+                                    Following this set of requirements should result in exactly what is described below - nothing more, nothing less.
                                     -- SPECS BELOW --
 
                                     {specs}
@@ -206,9 +206,23 @@ task_prompts = {
                         {reqs}
                         """),
 
-    'generate_code': dedent("""Take the below list of technical requirements, and write Python code that satisfies all of them - ensuring that
+    'generate_code': dedent("""Take the below technical specifications, and write Python code that satisfies all of them - ensuring that
                             the code follows best practises, is well documented, and a comment is left for each technical requirement in the code mapping
-                            the requirement to the relevent code (using the requirement ID number). The source code can span multiple files if necessary:
+                            the requirement to the relevent code (using the requirement ID). The source code can span multiple files if necessary:
+
+                        -- SPECIFICATIONS BELOW --
+                        
+                        {specs}
+                        """), 
+
+    'validate_requirements': dedent("""Provided the below technical requirements, your task is to ensure that the requirements are properly addressed,
+                                    and implemented in one or more source code files. You must adhere to the following format with your response:
+
+                                    <req><req_id>ID</req_id><implementation_details>DETAILS</implementation_details><requirement_satisfied>YESORNO</requirement_satisfied></req>
+
+                                    ...where ID cooresponds to the numbered ID of that requirement (just an integer - no alpha characters), DETAILS 
+                                    cooresponds to a short description (2 or 3 sentences max) of how the requirement was implemented, and YESORNO is either
+                                    TRUE if the requirement is satisfied in the code, or FALSE if it is not.
 
                         -- REQUIREMENTS BELOW --
                         
@@ -298,7 +312,7 @@ def update_step(text):
     logging.info(text)
     console.print(f"[bold cyan]{text}[/bold cyan]")
 
-def planning_phase(repo):
+def planning_phase(repo, detailed=False):
     global final_specs, requirements, test_plan
     resp = None
     
@@ -346,19 +360,21 @@ def planning_phase(repo):
         expanded_requirements = []
         req_chunk_size = 4
         requirements = resp.props['req']
-        for i in range(0, len(requirements), req_chunk_size):
-            try:
-                requirement_chunk = {'requirements': json.dumps(requirements[i:i+4], indent=4)}
-            except:
-                requirement_chunk = {'requirements': json.dumps(requirements[i:], indent=4)}
 
-            # Generate low-level reqs from specs
-            prompt = task_prompts['expand_requirements'].format(requirements=requirement_chunk)
-            resp = send_prompt(prompt, "planning")
-            expanded_requirements = expanded_requirements + resp.props['req']
+        if detailed:
+            for i in range(0, len(requirements), req_chunk_size):
+                try:
+                    requirement_chunk = {'requirements': json.dumps(requirements[i:i+4], indent=4)}
+                except:
+                    requirement_chunk = {'requirements': json.dumps(requirements[i:], indent=4)}
+
+                # Generate low-level reqs from specs
+                prompt = task_prompts['expand_requirements'].format(requirements=requirement_chunk)
+                resp = send_prompt(prompt, "planning")
+                requirements = expanded_requirements + resp.props['req']
 
         # Write detailed requirements to file
-        requirements = {'requirements': expanded_requirements}
+        requirements = {'requirements': requirements}
         with open(requirements_path, 'w', encoding="utf-8") as f:
             f.write(json.dumps(requirements, indent=4))
             update_step(f"Wrote requirements to {requirements_path}")
@@ -379,58 +395,91 @@ def planning_phase(repo):
             f.write(test_plan)
             update_step(f"Wrote test plan to {test_plan_path}")
 
+
+def developing_phase(repo, max_retries=3):
+    global final_specs, requirements, test_plan
+    resp = None
+    
+    # Initiate planning phase
+    update_step("Starting Developing Phase")
+
+    # Read in final specs
+    final_specs_path = os.path.join(PROJECT_NAME, "final_specs.txt")
+    if os.path.exists(final_specs_path):
+        with open(final_specs_path, 'r', encoding="utf-8") as f:
+            final_specs = f.read()
+            update_step(f"Read existing final specifications from {final_specs_path}")
+
+    # Read in requirements 
+    requirements_path = os.path.join(PROJECT_NAME, "technical_requirements.json")
+    if os.path.exists(requirements_path):
+        with open(requirements_path, 'r', encoding="utf-8") as f:
+            requirements = f.read()
+            update_step(f"Read existing requirements from {requirements_path}")
+
+    # Generate high-level reqs from specs
+    prompt = task_prompts['generate_code'].format(specs=final_specs)
+    resp = send_prompt(prompt, "developing")
+    
+    # Execute commands
+    for command in resp.props['cmd']:
+        output = execute_command(command)
+        commands.append({
+            'command': command,
+            'output': output
+        })
+        #TODO: Maybe add validation prompt here? Dunno.
+
+    # Operate on files
+    for file_data in resp.props['file']:
+        test_file = True if file_data['test_file'].lower() == 'true' else False
+        file_name = file_data['file_name']
+        file_path = os.path.join(SRC_DIR, file_name)
+        file_content = file_data['file_content']
+        with open(file_path, 'w') as f:
+            f.write(file_content)
+            if test_file:
+                test_files.append(file_data)
+            else:
+                files.append(file_data)
+            logging.info(f"Created/Updated file: {file_path}")
+
+    # Commit changes to repo
+    repo.quick_add(phase="Developing")
+
+    # Now, go through requirements list x items at once, and vaidate they are implemented
+    missing = []
+    analyzed = []
+    req_chunk_size = 5
+    for i in range(0, len(requirements), req_chunk_size):
+        try:
+            requirement_chunk = {'requirements': json.dumps(requirements[i:i+req_chunk_size], indent=4)}
+        except:
+            requirement_chunk = {'requirements': json.dumps(requirements[i:], indent=4)}
+
+        # Generate low-level reqs from specs
+        prompt = task_prompts['validate_requirements'].format(requirements=requirement_chunk)
+        resp = send_prompt(prompt, "planning")
+        for req in resp.props['req']:
+            status = req['requirement_satisfied'].upper()
+            if 'YES' in status or 'TRUE' in status:
+                analyzed.append(req)
+            else:
+                missing.append(req)
+
+    if len(missing) > 0:
+        print("FUCK NUGGETS!")
+
+    imp_details_path = os.path.join(PROJECT_NAME, "implementation_details.json")
+    imp_details = {'implementation_details': resp.props['req']}
+    imp_details = json.dumps(imp_details, indent=4)
+    with open(imp_details_path, 'w', encoding="utf-8") as f:
+        f.write(imp_details)
+        update_step(f"Wrote test plan to {imp_details_path}")
+
     sys.exit(0)
 
-async def developing_phase(repo, max_retries=3):
-    global files, test_files, commands, SRC_DIR
-    resp = None
-    logging.info("Starting Developing Phase")
-    with console.status(f"[bold green]Developing phase... | Total API Cost: ${models['developing'].total_api_cost:.2f}[/bold green]"):
-        final_specs_path = os.path.join(PROJECT_NAME, "final_specs.prompt")
-        with open(final_specs_path, 'r') as f:
-            final_specs = f.read()
-            logging.info("Read final specifications")
-
-        # Get prompt response
-        attempts = 0
-        resp = await send_prompt(f"""Using the below specifications as your reference, and following the rules in the system prompt, 
-            please provide the source code for the project:\n""" + final_specs, "developing")
-        
-        while attempts < max_retries:
-            resp = await send_prompt(f"""Using the below specifications as your reference, and following the rules in the system prompt, 
-            please provide the source code for the project:\n""" + final_specs, "developing")
-
-            # End loop if files are requested
-            if len(resp.files) > 0:
-                break
-
-            attempts += 1
-
-        files = files + resp.files
-
-        # Execute commands
-        for command in resp.commands:
-            output = execute_command(command)
-            commands.append({
-                'command': command,
-                'output': output
-            })
-        
-        # Operate on files
-        for file_data in resp.files:
-            test_file = True if file_data['test_file'].lower() == 'true' else False
-            file_name = file_data['file_name']
-            file_path = os.path.join(SRC_DIR, file_name)
-            file_content = file_data['file_content']
-            with open(file_path, 'w') as f:
-                f.write(file_content)
-                if test_file:
-                    test_files.append(file_data)
-                else:
-                    files.append(file_data)
-                logging.info(f"Created/Updated file: {file_path}")
-
-        repo.quick_add(phase="Developing")
+    #TODO: Add code for writing tests in test.py...
 
 async def testing_phase(repo):
     global files, commands, SRC_DIR, TEST_FILES_DIR
@@ -562,7 +611,7 @@ def main():
     start_phase = args.phase.lower()
     PROJECT_NAME = args.name
     
-    final_specs_path = os.path.join(PROJECT_NAME, "final_specs.prompt")
+    test_plan_path = os.path.join(PROJECT_NAME, "test_plan.json")
     dev_dir_path = os.path.join(PROJECT_NAME, "src")
 
     # Create project subdirectories
@@ -583,8 +632,8 @@ def main():
         if os.path.exists(dev_dir_path) and len(os.listdir(dev_dir_path)) > 1:
             console.print(f"[bold orange]**Skipping planning and development - src files exist, and no phase was specified by user...[/bold orange]")
             start_phase = 'testing'
-        elif os.path.exists(final_specs_path):
-            console.print(f"[bold orange]**Skipping planning - final specifications exist, and no phase was specified by user...[/bold orange]")
+        elif os.path.exists(test_plan_path):
+            console.print(f"[bold yellow]**Skipping planning - test cases exist, and no phase was specified by user...[/bold yellow]")
             start_phase = 'developing'
         else:
             console.print(f"[bold green]**Proceeding with initial planning - no phase was specified by user[/bold green]")
