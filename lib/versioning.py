@@ -1,6 +1,7 @@
 import subprocess
 import os
 import sys
+import shlex
 
 class Repo:
     def __init__(self, name, path):
@@ -23,9 +24,11 @@ class Repo:
     
     def run_command(self, command):
         """Utility method to run git commands"""
+        command = command.replace('\\', '/')
+
         try:
             process = subprocess.Popen(
-                command.split(),
+                shlex.split(command),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -33,6 +36,7 @@ class Repo:
             
             if process.returncode != 0:
                 raise Exception(f"Command failed: {error.decode()}")
+            process.terminate()
                 
             return output.decode()
         except Exception as e:
@@ -47,7 +51,7 @@ class Repo:
     
     def commit(self, message):
         """Commit staged files with the provided message"""
-        self.run_command(f'git -C {self.path} commit -m "{message}"')
+        self.run_command(f'git -C {self.path} commit -am "{message}"')
         
         # Rename default branch from master to main after 1st commit
         if self.pending_main_branch:
@@ -58,7 +62,7 @@ class Repo:
     def quick_add(self, phase, message=None):
         self.add()
         if not message:
-            message = f"Commiting new/updated files in \"{phase}\" phase."
+            message = f"Commiting changes in {phase} phase."
         self.commit(message)
     
     def push(self, branch="main"):

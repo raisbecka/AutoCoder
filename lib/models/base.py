@@ -46,8 +46,11 @@ class Response:
     def __init__(self, resp):
         self.raw_text = resp
 
-        # Extract commands first
+        # Extract properties from 
         self.props = Response._extract_tagged_content(resp)
+
+    def get_returned_elements(self):
+        return set(self.props.keys())
 
     def _extract_tagged_content(content, top_level=True):
         """

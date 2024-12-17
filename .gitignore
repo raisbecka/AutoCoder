@@ -1,2 +1,7 @@
+__pycache__/
+logs/*
 .env
-api_test/
+projects/*
+windsurf_system_prompt.txt
+cline_prompts.py
+main_old.py

@@ -6,4 +6,4 @@ from .o1 import O1
 from .ollama import Ollama
 from .vllm import VLLM
 
-__all__ = ['Model', 'Claude', 'Gemini', 'GPT', 'O1', 'Ollama', VLLM]
+__all__ = ['Model', 'Claude', 'Gemini', 'GPT', 'O1', 'Ollama', 'VLLM']
