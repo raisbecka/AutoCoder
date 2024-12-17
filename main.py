@@ -30,16 +30,17 @@ logging.basicConfig(
 
 
 # Terminate execution nicely
-def handle_sigint(signum, frame):
+def terminate_and_cleanup(signum=None, frame=None):
     print("Ctrl+C detected. Performing cleanup...")
-    config.handlers['cmd'].venv.kill_shell()
+    if config.handlers['cmd'].venv:
+        config.handlers['cmd'].venv.kill_shell()
 
 
 # Parse command-line args and setup & return context/state config
-def init_project(ctx):
+def init_project():
     
     # Handle ctrl+c nicely
-    signal.signal(signal.SIGINT, handle_sigint)
+    signal.signal(signal.SIGINT, terminate_and_cleanup)
     
     parser = argparse.ArgumentParser(description='Run the script starting from a specific phase.')
     parser.add_argument('--phase', type=str, default='not_specified',
@@ -80,25 +81,24 @@ if __name__=='__main__':
     # Initialize rich Console
     console = Console()
 
-    # Handle command-line args and init project
-    init_project()
-
-    # Read in user specs
-    with open("user_specs_example.txt", 'r') as f:
-        user_specs = f.read()
-
     try:
+
+        # Handle command-line args and init project
+        init_project()
+
+        # Read in user specs
+        with open("user_specs_example.txt", 'r') as f:
+            user_specs = f.read()
 
         # Start planning
         if not planning_phase.is_complete:
             data = planning_phase.run({'specs': user_specs})
         
         # Start development
+        pass
 
     except Exception as e:
         error_msg = traceback.format_exc()
         logging.error(f"An unexpected error occurred: {error_msg}")
         console.print(f"[bold red]An unexpected error occurred:[/bold red] {error_msg}")
-        print("Killing shell...")
-        config.handlers['cmd'].venv.kill_shell()
-        sys.exit(-1)
+        terminate_and_cleanup()

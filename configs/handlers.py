@@ -11,9 +11,11 @@ class DataHandler(Handler):
     def __init__(
             self,
             title: str,
-            file_name: str
+            file_name: str,
+            *args,
+            **kwargs
     ):
-        super().__init__(self)
+        super().__init__(*args, **kwargs)
         self.title = title,
         self.file_name = file_name
 
@@ -31,9 +33,11 @@ class DataHandler(Handler):
 class FileHandler(Handler):
 
     def __init__(
-            self
+            self,
+            *args,
+            **kwargs
     ):
-        super().__init__(self)
+        super().__init__(*args, **kwargs)
 
     def process(self, items):
         items = self.element.create_elements(items)
@@ -57,16 +61,16 @@ class CommandHandler(Handler):
     venv: Shell = None
 
     def __init__(
-            self
+            self,
+            *args,
+            **kwargs
     ):
-        super().__init__(self)
-        self.init_shell()
+        super().__init__(*args, **kwargs)
 
     def init_shell(self):
-        global venv
-        if not venv:
-            venv = Shell(
-                venv_path=f"{config.project_root}/{self.src_dir}/" , 
+        if not CommandHandler.venv:
+            CommandHandler.venv = Shell(
+                venv_path=f"{config.project_root}/{config.src_dir}/", 
                 python=config.python_version
             )
 
@@ -78,6 +82,7 @@ class CommandHandler(Handler):
             return f"{config.python_version} -m pip" + cmd[cmd.find('pip')+3:]
 
     def process(self, items):
+        self.init_shell()
         items = self.element.create_elements(items)
         return_val = {
             'commands': items

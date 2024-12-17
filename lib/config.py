@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-from lib import Handler, Element
+from lib.handler import Handler
+from lib.element import Element
 
 @dataclass
 class Config:
@@ -18,6 +19,3 @@ class Config:
     handlers: Dict[str, Handler] = None
 
 config = Config()
-
-
-

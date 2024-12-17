@@ -1,6 +1,6 @@
 from textwrap import dedent
 from typing import List
-from lib import Element
+from lib.element import Element
 
 class Task:
 

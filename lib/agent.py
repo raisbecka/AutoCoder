@@ -1,11 +1,13 @@
-from typing import List, Dict, Any, Optional, Callable
-from lib import Task, Env, config
+from typing import List, Dict, Any, Optional, Callable, Union
+from lib.task import Task
+from lib.environment import Env
+from lib.config import config
 from lib.models import Model
 
 class Agent:
 
     # Global callback - triggered when a task is completed for all Agents
-    on_task_complete: Callable | None = None
+    on_task_complete: Union[Callable, None] = None
 
     def __init__(
             self, 

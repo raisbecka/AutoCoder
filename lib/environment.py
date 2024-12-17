@@ -4,7 +4,7 @@ import sys
 import shellingham
 import platform
 from pathlib import Path
-from configs.project import config
+from lib.config import config
 
 class Env:
 

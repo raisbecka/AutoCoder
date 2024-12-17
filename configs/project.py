@@ -5,19 +5,19 @@ from configs.handlers import *
 # Associate handlers and pydantic models with the XML tags in responses
 config.handlers = {
     'req': DataHandler(
-        element=Requirement,
         title="requirements",
-        file_name="requirements.json"
+        file_name="requirements.json",
+        element=Requirement
     ),
     'test': DataHandler(
-        element=FunctionalityTest,
         title="tests",
-        file_name="tests.json"
+        file_name="tests.json",
+        element=FunctionalityTest
     ),
     'imp': DataHandler(
-        element=Implementation,
         title="implementation",
-        file_name="implementation.json"
+        file_name="implementation.json",
+        element=Implementation
     ),
     'file': FileHandler(
         element=File

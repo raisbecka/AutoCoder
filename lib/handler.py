@@ -1,6 +1,6 @@
 from abc import abstractmethod, ABC
 import json
-from lib import Element, data
+from lib.element import Element
 
 # General class for element handlers 
 class Handler(ABC):
@@ -10,7 +10,6 @@ class Handler(ABC):
             element: Element,
     ):
         self.element = element
-        self.last_request
 
     @abstractmethod
     def process(data):
