@@ -6,11 +6,14 @@ import traceback
 import os
 import logging
 from rich.console import Console
+from rich.logging import RichHandler
 from dotenv import load_dotenv
 from datetime import datetime
 from lib import Agent, config
 from lib.models import VLLM
 from configs.phases.planning import planning_phase
+from configs.phases.development import development_phase
+from configs.phases.testing import testing_phase
 from lib import Repo
 
 # Load environment variables from .env file
@@ -21,19 +24,40 @@ os.makedirs('logs', exist_ok=True)
 for f in os.listdir('logs'):
     if f.endswith('.log'):
         os.remove(os.path.join('logs', f))
-logging.basicConfig(
-    filename=f'logs/model_interactions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-
 
 # Terminate execution nicely
 def terminate_and_cleanup(signum=None, frame=None):
     print("Ctrl+C detected. Performing cleanup...")
     if config.handlers['cmd'].venv:
         config.handlers['cmd'].venv.kill_shell()
+
+
+def init_logging(args):
+    
+    # Log levels 
+    log_level_map = {
+        "info": logging.INFO,
+        "error": logging.ERROR,
+        "debug": logging.DEBUG,
+        "warning": logging.WARNING
+    }
+
+    # Set up logging at specified level
+    log_file_name = f'logs/model_interactions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+    logging.basicConfig(
+        filename=log_file_name,
+        level=log_level_map[args.log_level],
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Enable rich console logger if requested
+    if args.log_to_console:
+        console = Console()
+        rich_handler = RichHandler(console=console, show_time=True, show_level=True, markup=True)
+        logger = logging.getLogger()
+        logger.addHandler(rich_handler)
+        logging.info("Outputting log to console.")
 
 
 # Parse command-line args and setup & return context/state config
@@ -47,13 +71,22 @@ def init_project():
                       help='Phase to start from (Planning, Developing, Testing)')
     parser.add_argument('--name', type=str, required=True,
                       help='Project name - used for creating project subfolder')
+    parser.add_argument('--log-to-console', action='store_true', default=False,
+                      help='Output log to console in addition to log file')
+    parser.add_argument('--log-level', type=str, required=False, default="INFO",
+                      help='Used to set the logger level')    
 
     args = parser.parse_args()
     logging.debug(f"Command-line arguments parsed: {args}")
 
+    init_logging(args)
+
     # Update project name config
     config.project_name = args.name
     config.project_root = f"projects/{config.project_name}"
+
+    # Update starting phase config
+    config.current_phase = args.phase.lower()
 
     # Create projects directory
     proj_dir = os.path(config.project_root)
@@ -97,14 +130,26 @@ if __name__=='__main__':
             user_specs = f.read()
         logging.debug(f"User specs read. See below --- \n{user_specs}")
 
-        # Start planning
-        if not planning_phase.is_complete:
-            logging.info("Starting planning phase...")
-            data = planning_phase.run({'specs': user_specs})
-            logging.info("Planning phase completed.")
+        # Start Planning
+        if config.current_phase in ['plan', 'planning']:
+            if not planning_phase.is_complete:
+                logging.info("Starting planning phase...")
+                data = planning_phase.run({'specs': user_specs})
+                config.current_phase = 'development'
         
-        # Start development
-        pass
+        # Start Developing
+        if config.current_phase in ['development', 'developing']:
+            if not development_phase.is_complete:
+                logging.info("Starting development phase...")
+                data = development_phase.run(**data)
+                config.current_phase = 'testing'
+        
+        # Start Testing
+        if config.current_phase in ['test', 'testing']:
+            if not testing_phase.is_complete:
+                logging.info("Starting testing phase...")
+                data = testing_phase.run(**data)
+                config.current_phase = 'complete'
 
     except Exception as e:
         error_msg = traceback.format_exc()

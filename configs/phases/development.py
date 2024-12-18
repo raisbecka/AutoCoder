@@ -6,7 +6,6 @@ from configs.tasks import *
 
 # Define development phase 
 def run_development_phase(data):
-
    pass
 
 # Define planning phase validation method
@@ -23,12 +22,13 @@ def validate_development_phase():
     # Only return True if all file checks pass
     return all(tests)
 
-planning_phase = Phase(
-    title="Planning",
+development_phase = Phase(
+    title="Development",
     description=dedent("""
-            In this phase, the LLM must plan out the work that
-            needs to be completed in order to complete the development
-            task.
+            In this phase, the LLM must write the code that is 
+            outlined and defined in the prior planning phase, and 
+            write the associated testing code in order to proceed to 
+            the final "testing" phase.
     """),
     phase_func=run_development_phase,
     validation_func=validate_development_phase

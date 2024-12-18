@@ -13,7 +13,7 @@ class Config:
     test_file_dir: str = 'test_files'
     src_dir: str = 'src'
 
-    start_phase: str = 'planning'
+    current_phase: str = 'planning'
 
     # Element handler assignments
     handlers: Dict[str, Handler] = None
