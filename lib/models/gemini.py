@@ -4,10 +4,8 @@ import os
 from typing import AsyncGenerator
 from .base import Model, Response
 
-logging.debug("Loading lib/models/gemini.py")
-
 class Gemini(Model):
-    logging.debug("Initializing Gemini class")
+
     def __init__(self, model_name: str = "gemini-1.5-flash"):
         logging.debug(f"Initializing Gemini instance with model_name: {model_name}")
         super().__init__()

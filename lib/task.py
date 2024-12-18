@@ -2,11 +2,9 @@ import logging
 from textwrap import dedent
 from typing import List
 from lib.element import Element
-
-logging.debug("Loading lib/task.py")
+from lib.environment import Env
 
 class Task:
-    logging.debug("Initializing Task class")
 
     def __init__(
             self, 
@@ -24,7 +22,7 @@ class Task:
 
     def get_prompt(self, **inputs):
         logging.debug(f"Getting prompt with inputs: {inputs}")
-        main_prompt = Task.env_info + "\n<task>\nPlease complete the following task - paying " \
+        main_prompt = Env.summary() + "\n<task>\nPlease complete the following task - paying " \
                     + "as much attention to detail as possible: \n"
         main_prompt += self.details.format(**inputs)
         inst_prompt = dedent("""\n</task>\n<instructions>When completing the above task, please enclose your response within 

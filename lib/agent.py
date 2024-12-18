@@ -5,8 +5,6 @@ from lib.environment import Env
 from lib.config import config
 from lib.models import Model
 
-logging.debug("Loading lib/agent.py")
-
 class Agent:
 
     # Global callback - triggered when a task is completed for all Agents

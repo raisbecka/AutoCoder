@@ -9,7 +9,6 @@ class Model(ABC):
     total_api_cost = 0.0
     
     def __init__(self):
-        logging.debug("Initializing Model instance")
         self.system_prompt = None
         self.json_schema = None
         self.api_costs = {

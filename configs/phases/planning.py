@@ -11,7 +11,7 @@ def run_planning_phase(**data):
     data = product_owner.perform_task(
         generate_specs,
         inputs={
-            'specs': data['user_specs']
+            'specs': data['specs']
         }
     ) | data
 

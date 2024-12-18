@@ -4,10 +4,8 @@ import os
 from typing import AsyncGenerator
 from .base import Model, Response
 
-logging.debug("Loading lib/models/claude.py")
-
 class Claude(Model):
-    logging.debug("Initializing Claude class")
+
     def __init__(self, model_name: str = "claude-3-sonnet-20240229"):
         logging.debug(f"Initializing Claude instance with model_name: {model_name}")
         super().__init__()
