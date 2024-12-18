@@ -1,3 +1,4 @@
+import logging
 from textwrap import dedent
 from typing import List, Dict, Any, Optional, Callable, Union
 from datetime import datetime
@@ -46,12 +47,16 @@ class Phase(BaseModel):
 
     # Execute the phase
     def run(self, **kwargs):
+        logging.info(f"Starting phase: {self.title} with kwargs: {kwargs}")
         self._start_time = datetime.now()
         self._data = self.phase_func(**kwargs)
+        logging.info(f"Phase {self.title} function completed")
         self._validation_status = self.validation_func()
         self._end_time = datetime.now()
+        logging.info(f"Phase {self.title} completed with data: {self._data}, validation_status: {self._validation_status}")
         return self._data
     
     # Validate whether this phase is completed or not
     def is_complete(self):
+        logging.debug(f"Checking if phase {self.title} is complete")
         return self.validation_func()

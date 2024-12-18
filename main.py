@@ -49,6 +49,7 @@ def init_project():
                       help='Project name - used for creating project subfolder')
 
     args = parser.parse_args()
+    logging.debug(f"Command-line arguments parsed: {args}")
 
     # Update project name config
     config.project_name = args.name
@@ -58,19 +59,23 @@ def init_project():
     proj_dir = os.path(config.project_root)
     if not proj_dir.exists():
         os.makedirs(proj_dir, exist_ok=False)
+        logging.debug(f"Project directory created: {config.project_root}")
 
     # Create project subdirectories
     src_dir = os.path.join(config.project_root, config.src_dir)
     if not src_dir.exists():
         os.makedirs(src_dir, exist_ok=False)
+        logging.debug(f"Source directory created: {os.path.join(config.project_root, config.src_dir)}")
 
     test_file_dir = os.path.join(config.project_root, config.test_file_dir)
     if not test_file_dir.exists():
         os.makedirs(test_file_dir, exist_ok=False)
+        logging.debug(f"Test file directory created: {os.path.join(config.project_root, config.test_file_dir)}")
 
     # Initialize repo for project
     repo = Repo('proj', path=f"{config.project_root}/{config.src_dir}")
     repo.init()
+    logging.debug(f"Repository initialized at: {config.project_root}/{config.src_dir}")
 
     # Add commit action to post-task callback on all Agents
     Agent.on_task_complete = repo.quick_add
@@ -80,19 +85,23 @@ if __name__=='__main__':
 
     # Initialize rich Console
     console = Console()
+    logging.info("Script execution started.")
 
     try:
-
         # Handle command-line args and init project
         init_project()
 
         # Read in user specs
+        logging.debug("Reading user specs...")
         with open("user_specs_example.txt", 'r') as f:
             user_specs = f.read()
+        logging.debug(f"User specs read. See below --- \n{user_specs}")
 
         # Start planning
         if not planning_phase.is_complete:
+            logging.info("Starting planning phase...")
             data = planning_phase.run({'specs': user_specs})
+            logging.info("Planning phase completed.")
         
         # Start development
         pass
@@ -102,3 +111,4 @@ if __name__=='__main__':
         logging.error(f"An unexpected error occurred: {error_msg}")
         console.print(f"[bold red]An unexpected error occurred:[/bold red] {error_msg}")
         terminate_and_cleanup()
+    logging.info("Script execution finished.")

@@ -1,3 +1,4 @@
+import logging
 from .base import Model
 from .claude import Claude
 from .gemini import Gemini
