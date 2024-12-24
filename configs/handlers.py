@@ -1,10 +1,13 @@
 import json
 from typing import Dict, Any, Optional, List
 from lib import Handler, Shell
-from configs.project import config
+from lib import config
+from pydantic import ValidationError
 import sys
 import os
 import logging
+logger = logging.getLogger(__name__)
+logger.propagate = True
 
 # Data element handler
 class DataHandler(Handler):
@@ -17,24 +20,27 @@ class DataHandler(Handler):
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        self.title = title,
+        self.title = title
         self.file_name = file_name
-        logging.debug(f"DataHandler initialized with title: {self.title}, file_name: {self.file_name}")
+        logger.debug(f"DataHandler initialized with title: {self.title}, file_name: {self.file_name}")
 
     # Write element items to file using handler
     def process(self, items):
-        logging.info(f"Processing data with DataHandler: {self.title}")
         try:
-            items = self.element.create_elements(items)
-            logging.debug(f"Created elements: {items}")
-            return_val = {self.title: str(items)}
+            # Validate all items first
+            for item in items:
+                self.element.model_validate(item)
+
+            logger.info(f"Processing data with DataHandler: {self.title}")
             file_path = f"{config.project_root}/{self.file_name}"
+            data = {self.title: items}
             with open(file_path, 'w', encoding="utf-8") as f:
-                f.write(json.dumps(return_val, indent=4))
-            logging.info(f"Data written to file: {file_path}")
-            return return_val
-        except Exception as e:
-            logging.error(f"Error processing data with DataHandler: {e}")
+                output = json.dumps(data, indent=4)
+                f.write(output)
+            logger.info(f"Data written to file: {file_path}")
+            return {self.title: items}
+        except ValidationError as e:
+            logger.error(f"Error processing data with DataHandler: {e}")
             raise
 
 
@@ -47,26 +53,29 @@ class FileHandler(Handler):
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        logging.debug(f"FileHandler initialized")
+        logger.debug(f"FileHandler initialized")
 
     def process(self, items):
-        logging.info(f"Processing files with FileHandler")
+        logger.info(f"Processing files with FileHandler")
         try:
-            items = self.element.create_elements(items)
-            logging.debug(f"Created file elements: {items}")
+            # Validate all items first
+            for item in items:
+                self.element.model_validate(item)
+
+            logger.debug(f"Validated file elements")
             return_val = {
                 'files': items
             }
-            for idx in range(len(items)):
-                data = self.items[idx]
-                file_name = data['file_name']
-                file_content = data['file_content']
+            for item in items:
+                file_name = item['file_name']
+                file_content = item['file_content']
+                print(config.project_root, config.project_name)
                 with open(f"{config.project_root}/{config.src_dir}/{file_name}", "w") as fout:
                     fout.write(file_content)
-                logging.info(f"File written: {file_name}")
+                logger.info(f"File written: {file_name}")
             return return_val
         except Exception as e:
-            logging.error(f"Error processing files with FileHandler: {e}")
+            logger.error(f"Error processing files with FileHandler: {e}")
             raise
 
 
@@ -82,47 +91,49 @@ class CommandHandler(Handler):
             **kwargs
     ):
         super().__init__(*args, **kwargs)
-        logging.debug(f"CommandHandler initialized")
+        logger.debug(f"CommandHandler initialized")
 
     def init_shell(self):
         if not CommandHandler.venv:
-            logging.info("Initializing shell for CommandHandler")
+            logger.info("Initializing shell for CommandHandler")
             CommandHandler.venv = Shell(
                 venv_path=f"{config.project_root}/{config.src_dir}/", 
                 python=config.python_version
             )
-            logging.debug(f"Shell initialized with venv_path: {config.project_root}/{config.src_dir}/, python: {config.python_version}")
+            logger.debug(f"Shell initialized with venv_path: {config.project_root}/{config.src_dir}/, python: {config.python_version}")
 
     # Clean up commands a little and ensure using target python version
     def clean_command(self, cmd):
-        logging.debug(f"Cleaning command: {cmd}")
+        logger.debug(f"Cleaning command: {cmd}")
         if "python" in cmd:
             cleaned_cmd = config.python_version + cmd[cmd.find('python')+6:]
-            logging.debug(f"Cleaned command: {cleaned_cmd}")
+            logger.debug(f"Cleaned command: {cleaned_cmd}")
             return cleaned_cmd
         elif "pip" in cmd:
             cleaned_cmd = f"{config.python_version} -m pip" + cmd[cmd.find('pip')+3:]
-            logging.debug(f"Cleaned command: {cleaned_cmd}")
+            logger.debug(f"Cleaned command: {cleaned_cmd}")
             return cleaned_cmd
-        logging.debug(f"Command does not need cleaning: {cmd}")
+        logger.debug(f"Command does not need cleaning: {cmd}")
         return cmd
 
     def process(self, items):
-        logging.info(f"Processing commands with CommandHandler")
+        logger.info(f"Processing commands with CommandHandler")
         try:
             self.init_shell()
-            items = self.element.create_elements(items)
-            logging.debug(f"Created command elements: {items}")
+            # Validate all items first
+            for item in items:
+                self.element.model_validate(item)
+            logger.debug(f"Validated console command elements")
+            for item in items:
+                logger.debug(f"Running command: {item['command']}")
+                item['output'] = CommandHandler.venv.run_shell_command(
+                    self.clean_command(item['command'])
+                )
+                logger.debug(f"Command output: {item['output']}")
             return_val = {
                 'commands': items
             }
-            for i in range(len(self.items)):
-                logging.debug(f"Running command: {self.items[i].value}")
-                self.items[i].output = CommandHandler.venv.run_shell_command(
-                    self.clean_command(self.items[i].value)
-                )
-                logging.debug(f"Command output: {self.items[i].output}")
             return return_val
         except Exception as e:
-            logging.error(f"Error processing commands with CommandHandler: {e}")
+            logger.error(f"Error processing commands with CommandHandler: {e}")
             raise

@@ -1,13 +1,13 @@
 import json
 from textwrap import dedent
-from typing import Dict, Any, Optional, List
-from lib import DataElem, ToolElem
+from typing import Dict, Any, Optional, List, Union
+from lib import DataElem, ToolElem, ManyOptional
 from pydantic import Field
 
 ### DATA ELEMENTS ###
 class Requirement(DataElem):
     _element: str = "req"
-    _purpose= dedent("""to list a numbered requirement, along with it's description""")
+    _purpose: str = dedent("""to list a numbered requirement, along with it's description""")
     id: int = Field(
         alias='req_id',
         description="The numbered ID of the requirement (integer only, no alpha characters)"
@@ -20,8 +20,9 @@ class Requirement(DataElem):
 
 class Implementation(Requirement):
     _element: str = "imp"
-    _purpose= dedent("""to list a numbered requirement, the specifics of how it was implemented, 
-                     and whether it was succesfully and fully implemented.""")
+    _purpose= dedent("""
+                     to list a numbered requirement, the specifics of how it was implemented, 
+                     and whether it was succesfully and fully implemented""")
     implementation_details: str = Field(
         alias='imp_details',
         description="The actual code that was written for the cooresponding requirement"
@@ -36,7 +37,7 @@ class FilePlaceholder(DataElem):
     _element: str = "test_data"
     name: str = Field(
         alias='file_name',
-        description="The name of the test data file to be used in testing"
+        description="The name of the test data file to be used in testing."
     )
     description: str = Field(
         alias='file_description',
@@ -45,7 +46,8 @@ class FilePlaceholder(DataElem):
 
 class FunctionalityTest(DataElem):
     _element: str = "test"
-    _purpose= dedent("""to list a functionality test case, the ID of the requirement it's mapped to, the details of the test,
+    _purpose= dedent("""
+                     to list a functionality test case, the ID of the requirement it's mapped to, the details of the test,
                      the name and description of any test data files that are required (IF any are required to simulate a data flow
                      or user interaction for the test case), and finally, what the expected result of this unique test case is.
                      
@@ -68,10 +70,12 @@ class FunctionalityTest(DataElem):
         alias='test_details',
         description="The detailed description of what the test does"
     )
-    test_files: Optional[List[FilePlaceholder]] = Field(
+    test_files: ManyOptional[FilePlaceholder] = Field(
         alias="test_data",
-        description=dedent("""Optional list of test data files needed to simulate data flow or user interaction for the test case. 
-                           Only required if data cannot be programmatically generated during the test""")
+        description=dedent("""
+                           Optional list of test data files needed to simulate data flow or user interaction for the test case. 
+                           Only required if data cannot be programmatically generated during the test"""),
+        default=None
     )
     expected_result: str = Field(
         alias='exp_result',
@@ -82,7 +86,8 @@ class FunctionalityTest(DataElem):
 ### TOOL ELEMENTS ###
 class File(ToolElem):
     _element: str = "file"
-    _purpose= dedent("""to list files that need to be created or modified (in their entirety) in order to fullfill the specifications
+    _purpose= dedent("""
+                     to list files that need to be created or modified (in their entirety) in order to fullfill the specifications
                      and/or requirements as completely as possible""")
     name: str = Field(
         alias='file_name',
@@ -96,10 +101,11 @@ class File(ToolElem):
 
 class Command(ToolElem):
     _element: str = "cmd"
-    _purpose= dedent("""to list to list commands that need to be run in order to install any required packages or setup/modify the 
+    _purpose= dedent("""
+                     to list to list commands that need to be run in order to install any required packages or setup/modify the 
                      environment prior to running either the main code or the test code""")
     value: str = Field(
-        alias='cmd',
+        alias='command',
         description="The CLI command to be executed on the system"
     )
     """
@@ -108,5 +114,6 @@ class Command(ToolElem):
     would get included automatically in the XML guidelines, and the LLM would 
     hallucinate a value for it...
     """
-    output: str  
+    _output: str  
+
 

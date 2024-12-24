@@ -1,4 +1,6 @@
 import logging
+logger = logging.getLogger(__name__)
+logger.propagate = True
 from textwrap import dedent
 from typing import List, Dict, Any, Optional, Callable, Union
 from datetime import datetime
@@ -44,19 +46,26 @@ class Phase(BaseModel):
             completed successfully or not. Can be used to skip the phase 
             when starting the script if it was previously completed.
     """))
+    load_func: Callable = Field(description=dedent("""
+            Pointer to a data loading/restoring function which loads the
+            files that were written during a previous execution of this phase.
+    """))
 
     # Execute the phase
     def run(self, **kwargs):
-        logging.info(f"Starting phase: {self.title} with kwargs: {kwargs}")
+        logger.info(f"Starting phase: {self.title} with kwargs: {kwargs}")
         self._start_time = datetime.now()
         self._data = self.phase_func(**kwargs)
-        logging.info(f"Phase {self.title} function completed")
+        logger.info(f"Phase {self.title} function completed")
         self._validation_status = self.validation_func()
         self._end_time = datetime.now()
-        logging.info(f"Phase {self.title} completed with data: {self._data}, validation_status: {self._validation_status}")
+        logger.info(f"Phase {self.title} completed with data: {self._data}, validation_status: {self._validation_status}")
         return self._data
     
     # Validate whether this phase is completed or not
     def is_complete(self):
-        logging.debug(f"Checking if phase {self.title} is complete")
+        logger.debug(f"Checking if phase {self.title} is complete")
         return self.validation_func()
+    
+    def load_data(self, data):
+        return self.load_func(data)

@@ -1,0 +1,78 @@
+import logging
+import os
+from datetime import datetime
+from rich.console import Console
+from rich.logging import RichHandler
+
+# Setup directory structure for logging
+    os.makedirs('logs', exist_ok=True)
+    for f in os.listdir('logs'):
+        if f.endswith('.log'):
+            os.remove(os.path.join('logs', f))
+    
+    # Log levels 
+    log_level_map = {
+        "info": logging.INFO,
+        "error": logging.ERROR,
+        "debug": logging.DEBUG,
+        "warning": logging.WARNING
+    }
+
+    # Set up logging at specified level
+    log_file_name = f'logs/model_interactions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+    logging.basicConfig(
+        filename=log_file_name,
+        level=log_level_map[args.log_level.lower()],
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Enable rich console logger if requested
+    if args.log_to_console:
+        rich_handler = RichHandler(console=console, show_time=True, show_level=True, markup=True)
+        logger.addHandler(rich_handler)
+        logger.debug("Outputting log to console.")
+
+class ProjectLogger:
+    def __init__(self, project_name, log_to_console=False, log_level="INFO"):
+        self.project_name = project_name
+        self.log_to_console = log_to_console
+        self.log_level = log_level
+        self.logger = self._setup_logger()
+
+    def _setup_logger(self):
+        logger = logging.getLogger(self.project_name)
+        logger.setLevel(self._get_log_level()  # Set the base level for all handlers
+
+        # Setup directory structure for logging
+        os.makedirs('logs', exist_ok=True)
+        log_file_name = f'logs/model_interactions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+
+        # File handler
+        file_handler = logging.FileHandler(log_file_name)
+        file_handler.setLevel(self._get_log_level())
+        file_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        file_handler.setFormatter(file_formatter)
+        logger.addHandler(file_handler)
+
+        # Console handler
+        if self.log_to_console:
+            console = Console()
+            rich_handler = RichHandler(console=console, show_time=True, show_level=True, markup=True)
+            rich_handler.setLevel(self._get_log_level())
+            logger.addHandler(rich_handler)
+            logger.debug("Outputting log to console.")
+
+        return logger
+
+    def _get_log_level(self):
+        log_level_map = {
+            "info": logging.INFO,
+            "error": logging.ERROR,
+            "debug": logging.DEBUG,
+            "warning": logging.WARNING
+        }
+        return log_level_map.get(self.log_level.lower(), logging.INFO)
+
+    def get_logger(self):
+        return self.logger

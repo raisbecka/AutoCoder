@@ -1,5 +1,5 @@
 from textwrap import dedent
-from configs.project import config
+from configs.handler_mapping import config
 from configs.elements import *
 from lib import Task
 
@@ -21,12 +21,14 @@ generate_specs = Task(
 # Define high-level requirements generation task
 generate_requirements = Task(
     details=dedent("""
-        Take the below technical specifications, and write a numbered list of clear, concise technical requirements as 
-        you would for a software developer. Take your time, and be as detailed as possible. 
+        Take the below technical specifications, and write a numbered list of clear, concise functional requirements that
+        must be met by the software. Each requirement should map directly to a function or feature of the software. Requirements
+        should be written in a way that is easy to understand by a non-technical person, and should not reference any specific
+        technology or implementation details; they should only describe at a high-level what the software should do.
                    
-        See requirements below: 
+        See specifications below: 
 
-        {requirements}
+        {specs}
         """),
     expected_elements=[Requirement]
 )
@@ -41,8 +43,9 @@ generate_functional_tests = Task(
                    
         See requirements below: 
                         
-        {reqs}
+        {requirements}
         """),
+    expected_elements=[FunctionalityTest]
 )
 
 
@@ -52,9 +55,9 @@ generate_functional_tests = Task(
 generate_code = Task(
     details=dedent(f"""
         Take the below technical specifications, and write Python code that satisfies all of them - ensuring that the code 
-        follows best practises, and is well documented. The code should be saved in the directory 
-        "{config.project_root}/{config.src_dir}" Organize the code into classes and methods as appropriate - following ACID
-        design principles, but keep all the code in a very minimal number of source files.
+        follows best practises, and is well documented. Assume you are already in the root source code directory, so any 
+        file names should be relative to the current/root directory. Organize the code into classes and methods as appropriate - 
+        following ACID design principles, but keep all the code in a very minimal number of source files.
         
         Also, remember that no Python modules are installed. Therefore, if any are used, ensure that they are installed by issuing the 
         necessary command(s). 
@@ -74,14 +77,14 @@ validate_code = Task(
                    
         See requirements below:
 
-        {reqs}
+        {requirements}
         """),
     expected_elements=[File, Command]
 )
 
 # Define functional test code generation task
-validate_code = Task(
-    details=dedent(f"""Create a file called test.py (in directory "{config.project_root}" which leverages the pytest framework
+generate_tests = Task(
+    details=dedent(f"""Create a file called test.py (assume you are already in the corrent directory) which leverages the pytest framework
         for running tests to ensure that all the FUNCTIONAL requirements are working are met, and the code is working as 
         expected. Adhere to the points below:
                              

@@ -1,4 +1,6 @@
 import logging
+logger = logging.getLogger(__name__)
+logger.propagate = True
 import os
 import queue
 import subprocess
@@ -14,7 +16,7 @@ from queue import Queue
 class ShellThread(threading.Thread):
 
     def __init__(self):
-        logging.debug("Initializing ShellThread instance")
+        logger.debug("Initializing ShellThread instance")
         super().__init__()
         self.daemon=True
         self.input_queue = Queue()
@@ -28,13 +30,13 @@ class ShellThread(threading.Thread):
             stderr=subprocess.STDOUT, 
             text=True
         )
-        logging.debug(f"ShellThread initialized with shell: {self.shell}")
+        logger.debug(f"ShellThread initialized with shell: {self.shell}")
 
     def run(self):
-        logging.debug("ShellThread run method started")
+        logger.debug("ShellThread run method started")
         while not self.terminate.is_set():
             command = self.input_queue.get()
-            logging.debug(f"ShellThread received command: {command}")
+            logger.debug(f"ShellThread received command: {command}")
             if command is None:
                 continue
             output = ""
@@ -47,7 +49,7 @@ class ShellThread(threading.Thread):
             try:
                 self.shell.stdin.write(f"{bat_path}\n")
                 self.shell.stdin.flush()
-                logging.debug(f"ShellThread executing command: {command}")
+                logger.debug(f"ShellThread executing command: {command}")
                 while not self.terminate.is_set():
                     line = self.shell.stdout.readline()
                     output += line
@@ -57,18 +59,18 @@ class ShellThread(threading.Thread):
                         os.remove(bat_path)
                         self.output_queue.put(output)
                         self.finished.set()
-                        logging.debug(f"ShellThread command completed: {command}")
+                        logger.debug(f"ShellThread command completed: {command}")
                         break
                     time.sleep(0.2)
             except Exception as e:
-                logging.error(f"Error during shell command execution: {e}")
+                logger.error(f"Error during shell command execution: {e}")
         self.shell.terminate()
-        logging.debug("ShellThread run method finished")
+        logger.debug("ShellThread run method finished")
 
 class Shell:
-    logging.debug("Initializing Shell class")
+    logger.debug("Initializing Shell class")
     def __init__(self, venv_path, python):
-        logging.debug(f"Initializing Shell instance with venv_path: {venv_path}, python: {python}")
+        logger.debug(f"Initializing Shell instance with venv_path: {venv_path}, python: {python}")
         self.proj_src = venv_path
         self.venv_path = os.path.join(self.proj_src, "venv")
         self.interpreter = python
@@ -78,56 +80,56 @@ class Shell:
             print(f"Deleted existing virtual environment at {self.venv_path}")
         self._init_shell()
         self._update_gitignore()
-        logging.debug(f"Shell instance initialized")
+        logger.debug(f"Shell instance initialized")
 
     def _init_shell(self):
-        logging.debug("Initializing shell")
+        logger.debug("Initializing shell")
         self.shell_thread = ShellThread()
         self.shell_thread.start()
         self._create_venv()
         self._activate_venv()
-        logging.debug("Shell initialized")
+        logger.debug("Shell initialized")
 
     def _create_venv(self):
-        logging.debug("Creating virtual environment")
+        logger.debug("Creating virtual environment")
         if not os.path.exists(self.venv_path):
             self.run_shell_command(f"{self.interpreter} -m venv {self.venv_path}")
             print(f"Virtual environment created at {self.venv_path}")
         else:
             print(f"Virtual environment already exists at {self.venv_path}")
-        logging.debug("Virtual environment created")
+        logger.debug("Virtual environment created")
 
     def _update_gitignore(self):
-        logging.debug("Updating .gitignore")
+        logger.debug("Updating .gitignore")
         gitignore_path = self.proj_src + '/.gitignore'
         venv_name = 'venv'
         with open(gitignore_path, 'w') as file:
             file.write(f"{venv_name}\n")
             print(f"Created .gitignore and added {venv_name} to it")
-        logging.debug(".gitignore updated")
+        logger.debug(".gitignore updated")
 
     def _activate_venv(self):
-        logging.debug("Activating virtual environment")
+        logger.debug("Activating virtual environment")
         self.run_shell_command("venv/Scripts/activate.bat")
         print(f"Virtual environment activated at {self.venv_path}")
-        logging.debug("Virtual environment activated")
+        logger.debug("Virtual environment activated")
 
     def deactivate_venv(self):
-        logging.debug("Deactivating virtual environment")
+        logger.debug("Deactivating virtual environment")
         self.run_shell_command("deactivate")
-        logging.debug("Virtual environment deactivated")
+        logger.debug("Virtual environment deactivated")
 
     def kill_shell(self):
         self.shell_thread.terminate.set()
         self.shell_thread.input_queue.put("echo DIE MOFO!")
         self.shell_thread.join(timeout=5)
-        logging.debug("Shell killed")
+        logger.debug("Shell killed")
 
     def run_shell_command(self, command, timeout=20):
-        logging.debug(f"Running shell command: {command}, timeout: {timeout}")
+        logger.debug(f"Running shell command: {command}, timeout: {timeout}")
         self.shell_thread.finished.clear()
         self.shell_thread.input_queue.put(command)
-        logging.debug(f"Command put into queue: {command}")
+        logger.debug(f"Command put into queue: {command}")
         start_time = time.time()
         output = ""
         while not self.shell_thread.finished.is_set():
@@ -147,13 +149,13 @@ class Shell:
                 output += self.shell_thread.output_queue.get(timeout=0.2)
             except queue.Empty:
                 continue
-        logging.debug(f"Shell command completed: {command}, output: {output}")
+        logger.debug(f"Shell command completed: {command}, output: {output}")
         return output
 
     def generate_requirements(self):
-        logging.debug("Generating requirements file")
+        logger.debug("Generating requirements file")
         requirements_file = 'requirements.txt'
         with open(requirements_file, 'w') as fout:
             fout.write(self.run_shell_command("venv/Scripts/pip freeze"))
         print(f"requirements file generated: {requirements_file}")
-        logging.debug(f"requirements file generated: {requirements_file}")
+        logger.debug(f"requirements file generated: {requirements_file}")

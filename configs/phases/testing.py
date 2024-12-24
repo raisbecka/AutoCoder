@@ -1,6 +1,6 @@
 import os
 from lib import Phase
-from configs.project import config
+from configs.handler_mapping import config
 from configs.agents import *
 from configs.tasks import *
 
@@ -31,5 +31,6 @@ testing_phase = Phase(
             solution is found that passes all the tests.
     """),
     phase_func=run_test_phase,
-    validation_func=validate_test_phase
+    validation_func=validate_test_phase,
+    load_func=lambda data: None
 )

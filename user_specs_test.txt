@@ -1,0 +1,3 @@
+Using Python and FastAPI, you must build a script that takes 1 command-line argument called name.
+
+Then, you must output, "Hello, <name>!" (where <name> is the name from the arg) 3 times before completing.

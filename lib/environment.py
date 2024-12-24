@@ -1,4 +1,6 @@
 import logging
+logger = logging.getLogger(__name__)
+logger.propagate = True
 from textwrap import dedent
 import os
 import sys
@@ -31,7 +33,7 @@ class Env:
     # Prints a summary of the current working environment for the LLM
     @staticmethod
     def summary():
-        logging.debug("Returning system environment info for Agent's reference...")
+        logger.debug("Returning system environment info for Agent's reference...")
         return dedent(f""" 
         <environment_info>
             Operating System: {Env.OS_NAME} - {Env.OS_RELEASE} ({Env.OS_TYPE})

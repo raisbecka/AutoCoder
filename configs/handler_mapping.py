@@ -11,7 +11,7 @@ config.handlers = {
     ),
     'test': DataHandler(
         title="tests",
-        file_name="tests.json",
+        file_name="test_plan.json",
         element=FunctionalityTest
     ),
     'imp': DataHandler(

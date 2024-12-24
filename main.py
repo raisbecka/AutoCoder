@@ -5,38 +5,40 @@ import argparse
 import traceback
 import os
 from pathlib import Path
-import logging
 from rich.console import Console
 from rich.logging import RichHandler
 from dotenv import load_dotenv
 from datetime import datetime
 from lib import Agent, config
-from lib.models import VLLM
 from configs.phases.planning import planning_phase
 from configs.phases.development import development_phase
 from configs.phases.testing import testing_phase
 from lib import Repo
+import logging
+logger = logging.getLogger(__name__)
+logger.propagate = True
 
 console = Console()
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Set up logging
-os.makedirs('logs', exist_ok=True)
-for f in os.listdir('logs'):
-    if f.endswith('.log'):
-        os.remove(os.path.join('logs', f))
-
 # Terminate execution nicely
 def terminate_and_cleanup(signum=None, frame=None):
     print("Ctrl+C detected. Performing cleanup...")
     if config.handlers['cmd'].venv:
         config.handlers['cmd'].venv.kill_shell()
+    sys.exit(0)
 
 
 def init_logging(args):
-    global console
+    global console, logger
+
+    # Setup directory structure for logging
+    os.makedirs('logs', exist_ok=True)
+    for f in os.listdir('logs'):
+        if f.endswith('.log'):
+            os.remove(os.path.join('logs', f))
     
     # Log levels 
     log_level_map = {
@@ -50,7 +52,7 @@ def init_logging(args):
     log_file_name = f'logs/model_interactions_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
     logging.basicConfig(
         filename=log_file_name,
-        level=logging.DEBUG,
+        level=log_level_map[args.log_level.lower()],
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
@@ -58,7 +60,6 @@ def init_logging(args):
     # Enable rich console logger if requested
     if args.log_to_console:
         rich_handler = RichHandler(console=console, show_time=True, show_level=True, markup=True)
-        logger = logging.getLogger()
         logger.addHandler(rich_handler)
         logger.debug("Outputting log to console.")
 
@@ -82,11 +83,10 @@ def init_project():
 
     init_logging(args)
 
-    logging.debug(f"Command-line arguments parsed: {args}")
+    logger.debug(f"Command-line arguments parsed: {args}")
 
     # Update project name config
-    config.project_name = args.name
-    config.project_root = f"projects/{config.project_name}"
+    config.set_project_name(args.name)
 
     # Update starting phase config
     config.current_phase = args.phase.lower()
@@ -95,26 +95,26 @@ def init_project():
     proj_dir = Path(config.project_root)
     if not proj_dir.exists():
         os.makedirs(proj_dir, exist_ok=False)
-        logging.debug(f"Project directory created: {config.project_root}")
+        logger.debug(f"Project directory created: {config.project_root}")
 
     # Create project subdirectories
     src_dir = Path(f"{config.project_root}/{config.src_dir}")
     if not src_dir.exists():
         os.makedirs(src_dir, exist_ok=False)
-        logging.debug(f"Source directory created: {os.path.join(config.project_root, config.src_dir)}")
+        logger.debug(f"Source directory created: {os.path.join(config.project_root, config.src_dir)}")
 
     test_file_dir = Path(f"{config.project_root}/{config.test_file_dir}")
     if not test_file_dir.exists():
         os.makedirs(test_file_dir, exist_ok=False)
-        logging.debug(f"Test file directory created: {os.path.join(config.project_root, config.test_file_dir)}")
+        logger.debug(f"Test file directory created: {os.path.join(config.project_root, config.test_file_dir)}")
 
     # Initialize repo for project
     repo = Repo('proj', path=f"{config.project_root}/{config.src_dir}")
     repo.init()
-    logging.debug(f"Repository initialized at: {config.project_root}/{config.src_dir}")
+    logger.debug(f"Repository initialized at: {config.project_root}/{config.src_dir}")
 
     # Add commit action to post-task callback on all Agents
-    Agent.on_task_complete = repo.quick_add
+    #Agent.on_task_complete = lambda : repo.quick_add(config.current_phase)
 
 
 if __name__=='__main__':
@@ -122,40 +122,47 @@ if __name__=='__main__':
     # Handle command-line args and init project
     init_project()
 
+    # Holds the generated session/context data that the Agents pass back and forth
+    data = {}
+
     try:
         
         # Read in user specs
-        logging.debug("Reading user specs...")
-        with open("user_specs_example.txt", 'r') as f:
+        logger.debug("Reading user specs...")
+        with open("user_specs_test.txt", 'r') as f:
             user_specs = f.read()
+        data['specs'] = user_specs
 
-        logging.debug(f"User specs read. See below --- \n{user_specs}")
+        logger.debug(f"User specs read. See below --- \n{user_specs}")
 
         # Start Planning
         if config.current_phase in ['plan', 'planning']:
             if not planning_phase.is_complete():
-                logging.info("Starting planning phase...")
-                data = planning_phase.run(specs=user_specs)
-                config.current_phase = 'development'
-        
+                logger.info("Starting planning phase...")
+                data = planning_phase.run(**data)
+            else:
+                logger.info("Planning phase already completed; loading data...")
+                data = planning_phase.load_data(data) | data
+            config.current_phase = 'development'
+
         # Start Developing
         if config.current_phase in ['development', 'developing']:
             if not development_phase.is_complete():
-                logging.info("Starting development phase...")
+                logger.info("Starting development phase...")
                 data = development_phase.run(**data)
-                config.current_phase = 'testing'
+            config.current_phase = 'testing'
         
         # Start Testing
         if config.current_phase in ['test', 'testing']:
             if not testing_phase.is_complete():
-                logging.info("Starting testing phase...")
+                logger.info("Starting testing phase...")
                 data = testing_phase.run(**data)
-                config.current_phase = 'complete'
+            config.current_phase = 'complete'
 
     except Exception as e:
         error_msg = traceback.format_exc()
-        logging.error(f"An unexpected error occurred: {error_msg}")
+        logger.error(f"An unexpected error occurred: {error_msg}")
         console.print(f"[bold red]An unexpected error occurred:[/bold red] {error_msg}")
         terminate_and_cleanup()
 
-    logging.info("Script execution finished.")
+    logger.info("Script execution finished.")

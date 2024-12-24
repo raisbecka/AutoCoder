@@ -1,9 +1,15 @@
 import logging
+import requests
+logger = logging.getLogger(__name__)
+logger.propagate = True
 from typing import List, Dict, Any, Optional, Callable, Union
-from lib.task import Task
+from lib.task import Task, TaskValidationError
+from lib.element import Element
 from lib.environment import Env
 from lib.config import config
-from lib.models import Model
+from lib.models import Model, Response
+import pydantic_core
+import traceback
 
 class Agent:
 
@@ -16,22 +22,12 @@ class Agent:
             role: str, 
             system_prompt: str
     ):
-        logging.debug(f"Initializing Agent with model: {model}, role: {role}")
+        logger.debug(f"Initializing Agent with model: {model}, role: {role}")
         self.model = model
         self.role = role
         self.system_prompt = system_prompt
         self.conversation_list: List[Dict[str, Any]] = []
         self.current_task = None
-
-    def validate_task_elements(
-            self, 
-            task: Task, 
-            objs
-    ):
-        logging.debug(f"Validating task elements for task: {task}, objs: {objs}")
-        task_elems = set(task.get_expected_elements())
-        resp_elems = set(objs)
-        return resp_elems <= task_elems
 
     def perform_task(
             self, 
@@ -39,55 +35,72 @@ class Agent:
             inputs: Dict[str, any],
             max_attempts: int = 3
     ):
-        logging.info(f"Performing task: {task} with inputs: {inputs}")
+        logger.info(f"Performing task: {task} with inputs: {inputs}")
         self.current_task = task
         prompt_text = task.get_prompt(**inputs)
         return_val = None
         for i in range(max_attempts):
-            logging.debug(f"Attempt {i+1} of {max_attempts} for task: {task}")
-            logging.debug(f"Prompting model with text: {prompt_text}")
+            logger.debug(f"Attempt {i+1} of {max_attempts} for task: {task}")
+            logger.debug(f"Prompting model with text: {prompt_text}")
             try:
                 resp = self.model.prompt(Env.summary() + prompt_text)
-                logging.debug(f"Model response: {resp}")
-                data = self._process_elements(resp.props)
-                if data:
-                    return_val = data
+                logger.debug(f"Model response: {resp}")
+                if resp.props:
+                    return_val = self._process_elements(task, resp)
                 else:
+                    logger.debug("No elements to process")
                     return_val = resp.raw_text
                 break            
+            
             # If an error occurs, try again until max_retries exceeded
             except Exception as e:
-                logging.error(f"Error during task execution: {e}")
-                continue
+                if isinstance(e, requests.exceptions.RequestException):
+                    error_str = "Network"
+                elif isinstance(e, TaskValidationError):
+                    error_str = "Task Validation"   
+                elif isinstance(e, pydantic_core._pydantic_core.ValidationError):
+                    error_str = "Element Validation"
+                else:
+                    raise e
+                logger.error(f"{error_str}: {e}\n" + f"Retrying for attempt {i + 1}/{max_attempts}" \
+                    if i + 1 <= max_attempts else f"{error_str}: Max attempts exceeded - shutting down...")
+                logger.error(traceback.format_exc())
+                
         
         # Run optional callback if set on task completion
-        if Agent.on_task_complete:
-            logging.debug(f"Running on_task_complete callback: {Agent.on_task_complete}")
+        if Agent.on_task_complete and return_val:
+            logger.debug(f"Running on_task_complete callback: {Agent.on_task_complete}")
             Agent.on_task_complete()
-        logging.info(f"Task {task} completed with result: {return_val}")
+        
         return return_val
 
     def _process_elements(
             self, 
-            elements
+            task: Task,
+            resp: Response
     ):
-        logging.debug(f"Processing elements: {elements}")
+        
         # Used to return values back from the agent
         data = {}
+        elements = list(resp.props.keys())
         
-        # If response contains elements
-        if len(elements.keys()) > 0:
-            for key in list(elements.keys()):
-                items = elements[key]
+        # Ensure the right elements have been returned
+        if set(task.get_expected_elements()) >= set(elements):
+
+            logger.debug(f"Processing returned elements: {elements}")
+            
+            # If response contains elements
+            data = {}
+            for key in elements:
+                items = resp.props[key]
                 handler = config.handlers[key]
-                logging.debug(f"Processing element with key: {key}, items: {items}, handler: {handler}")
-                if self.validate_task_elements(handler.validate(items)):
-                    data = data | handler.process(items) # Merge returned data with existing
-                logging.debug(f"Processed element with key: {key}, result: {data}")
+                logger.debug(f"Processing element with key: {key}, items: {len(items)}, handler: {handler}")
+                data = handler.process(items) | data
         
-        # If response is text-only
         else:
-            logging.debug("No elements to process")
-            return None
-        logging.debug(f"Returning processed elements: {data}")
+            logger.debug(f"Validation failed on returned elements: {elements}")
+            raise TaskValidationError("Validation Error: Unexpected elements contained within LLM/model response")
+
+        logger.debug(f"Returning processed elements: {list(data.keys())}")
         return data
+        
