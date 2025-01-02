@@ -96,7 +96,7 @@ class Model(ABC):
         self.json_schema = schema_class
         logger.debug(f"Json schema set: {self.json_schema}")
     
-    def prompt(self, prompt_text: str, console_overlay: bool=False) -> Response:
+    def prompt(self, prompt_text: str, console_overlay: bool=False, remove_sections: bool=True) -> Response:
         if console_overlay:
             print("\033[?1049h\033[22;0;0t\033[0;0H", end="")
 
@@ -118,8 +118,11 @@ class Model(ABC):
         if console_overlay:
             print("\033[?1049l\033[23;0;0t", end="")
         else:
+            
             with Model.console.status("[bold green]Prompt Response Complete! Processing...[/bold green]", spinner="dots"):
-                time.sleep(1)
+                time.sleep(0.5)
+            
+            """
             for i in range(max_lines):
                 Model.console.control(
                     Control(
@@ -128,9 +131,12 @@ class Model(ABC):
                     )
                 )
                 time.sleep(0.02)
+            """
 
         logger.debug(f"Prompt response complete: {full_response}")
 
+        if remove_sections:
+            full_response = re.sub('\`\`\`[a-zA-Z0-9]*', '', full_response)
         return Response(full_response)
     
     def prompt_sync(self, prompt_text: str) -> Iterator[str]:

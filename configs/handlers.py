@@ -16,12 +16,14 @@ class DataHandler(Handler):
             self,
             title: str,
             file_name: str,
+            dir: str = None,
             *args,
             **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.title = title
         self.file_name = file_name
+        self.dir = dir
         logger.debug(f"DataHandler initialized with title: {self.title}, file_name: {self.file_name}")
 
     # Write element items to file using handler
@@ -32,7 +34,10 @@ class DataHandler(Handler):
                 self.element.model_validate(item)
 
             logger.info(f"Processing data with DataHandler: {self.title}")
-            file_path = f"{config.project_root}/{self.file_name}"
+            if self.dir:
+                file_path = f"{config.project_root}/{self.dir}/{self.file_name}"
+            else:
+                file_path = f"{config.project_root}/{self.file_name}"
             data = {self.title: items}
             with open(file_path, 'w', encoding="utf-8") as f:
                 output = json.dumps(data, indent=4)
@@ -117,6 +122,13 @@ class CommandHandler(Handler):
         return cmd
 
     def process(self, items):
+
+        #TODO: PUT THIS BACK!
+        return_val = {
+            'commands': items
+        }
+        return return_val
+        '''
         logger.info(f"Processing commands with CommandHandler")
         try:
             self.init_shell()
@@ -137,3 +149,4 @@ class CommandHandler(Handler):
         except Exception as e:
             logger.error(f"Error processing commands with CommandHandler: {e}")
             raise
+        '''

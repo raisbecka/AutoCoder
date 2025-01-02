@@ -1,6 +1,6 @@
 import os
 from lib import Phase
-from configs.handler_mapping import config
+from configs.handler_config import config
 from configs.agents import *
 from configs.tasks import *
 

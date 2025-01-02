@@ -93,9 +93,14 @@ class Agent:
             data = {}
             for key in elements:
                 items = resp.props[key]
-                handler = config.handlers[key]
-                logger.debug(f"Processing element with key: {key}, items: {len(items)}, handler: {handler}")
-                data = handler.process(items) | data
+
+                try:
+                    handler = config.handlers[key]
+                    logger.debug(f"Processing element with key: {key}, items: {len(items)}, handler: {handler}")
+                    data = handler.process(items) | data
+                except KeyError as e:
+                    logger.debug("No handler configured/mapped for element \"key\"; storing data and proceeding...")
+                    data = {key: items} | data
         
         else:
             logger.debug(f"Validation failed on returned elements: {elements}")

@@ -1,50 +1,89 @@
 from math import floor
 import os
+import sys
+import re
 from lib import Phase
-from configs.handler_mapping import config
+from configs.handler_config import config
 from configs.agents import *
 from configs.tasks import *
+from configs.processes import *
+from difflib import ndiff
+import string
+import logging
+logger = logging.getLogger(__name__)
+logger.propagate = True
 
-# Validate the requirements in chunks of N
-def validate_requirements(data, n=5):
-    imp_data = {}
-    number_of_requirements = len(data['requirements'])
-    if number_of_requirements <= n:
-        i_max = 0
-    else:
-        i_partition = floor(number_of_requirements / n)
-        i_max = i_partition * n
-        for i in range(0, i_partition, n):
-            requirement_slice = data['requirements'][i:i+n]
-            imp_data = product_owner.perform_task(
-                validate_code, 
-                inputs={
-                    'requirements': requirement_slice
-                }
-            ) | imp_data
-
-    # Validate remaining requirements
-    requirement_slice = data['requirements'][i_max:]
-    data['implementation'] = product_owner.perform_task(
-        validate_code, 
-        inputs={
-            'requirements': requirement_slice
-        }
-    ) | imp_data
 
 # Define development phase 
 def run_development_phase(**data):
    
     # Generate code
-    data = product_owner.perform_task(
+    source_code = developer.perform_task(
         generate_code, 
         inputs={
             'specs': data['specs']
         }
-    ) | data
+    )
 
-    # Validate requirements
-    validate_requirements(data, n=5)
+    # Segment and semantically index code for later
+    data = index_code(source_code) | data
+    if data:
+
+        results = fetch_relevant_code(data, "The script must accept a name command line argument to greet the user", 1)
+        print(results)
+
+        # Validation loop
+        while True:
+            
+            # Validate requirements
+            data = validate_items(
+                data=data, 
+                validation_task=validate_code,
+                input_data='requirements',
+                validation_target='source_files',
+                output_label='implementation',
+                n=5
+            ) | data
+
+            # Check if all requirements have been implemented
+            if len(data['code_validation']['fail']) == 0:
+                break
+            
+            # Add/fix requirements that failed validation
+            else:
+                
+                data = developer.perform_task(
+                    add_missing_requirements, 
+                    inputs={
+                        'requirements': data['specs']
+                    }
+                ) | data
+
+        # Validate requirements
+        data = validate_items(
+            data=data, 
+            validation_task=validate_code,
+            input_label='requirements',
+            output_label='code_validation',
+            n=5
+        ) | data
+
+        # Generate tests
+        data = developer.perform_task(
+            generate_tests, 
+            inputs={
+                'test_plan': data['tests']
+            }
+        ) | data
+
+        return data
+    
+    else:
+        
+        logger.debug("Failed to properly segment code for semantic indexing; check tasks.py and update task as required. Terminating...")
+        sys.exit(1)
+     
+
    
 
 # Define planning phase validation method
@@ -62,6 +101,19 @@ def validate_development_phase():
 
     # Only return True if all file checks pass
     return all(tests)
+
+
+# Load data from previously completed phase
+def load_development_data(data):
+    
+    with open(f"{config.project_root}/requirements.json", 'r') as f:
+        data = json.loads(f.read())
+    
+    with open(f"{config.project_root}/test_plan.json", 'r') as f:
+        data = json.loads(f.read()) | data
+
+    return data
+
 
 development_phase = Phase(
     title="Development",

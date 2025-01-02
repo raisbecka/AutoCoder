@@ -149,20 +149,23 @@ if __name__=='__main__':
         if config.current_phase in ['development', 'developing']:
             if not development_phase.is_complete():
                 logger.info("Starting development phase...")
-                data = development_phase.run(**data)
+                data = development_phase.run(**data) | data
+            else:
+                logger.info("Development phase already completed; loading data...")
+                data = development_phase.load_data(data) | data
             config.current_phase = 'testing'
         
         # Start Testing
         if config.current_phase in ['test', 'testing']:
             if not testing_phase.is_complete():
                 logger.info("Starting testing phase...")
-                data = testing_phase.run(**data)
+                print(data)
+                data = testing_phase.run(**data) | data
             config.current_phase = 'complete'
 
     except Exception as e:
         error_msg = traceback.format_exc()
         logger.error(f"An unexpected error occurred: {error_msg}")
-        console.print(f"[bold red]An unexpected error occurred:[/bold red] {error_msg}")
         terminate_and_cleanup()
 
     logger.info("Script execution finished.")

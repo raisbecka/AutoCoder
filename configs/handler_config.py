@@ -9,6 +9,12 @@ config.handlers = {
         file_name="requirements.json",
         element=Requirement
     ),
+    'code_segment': DataHandler(
+        title="code_segments",
+        file_name="code_segments.json",
+        dir="llm_data",
+        element=CodeSegment
+    ),
     'test': DataHandler(
         title="tests",
         file_name="test_plan.json",
@@ -26,3 +32,4 @@ config.handlers = {
         element=Command
     )
 }
+

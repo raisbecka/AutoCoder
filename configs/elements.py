@@ -23,12 +23,14 @@ class Implementation(Requirement):
     _purpose= dedent("""
                      to list a numbered requirement, the specifics of how it was implemented, 
                      and whether it was succesfully and fully implemented""")
-    implementation_details: str = Field(
-        alias='imp_details',
-        description="The actual code that was written for the cooresponding requirement"
-    )
-    complete: str = Field(
-        alias='req_satisfied',
+    analysis: str = Field(
+        alias='analysis',
+        description=dedent("""
+                           Take your time, and think through the following: was this requirement 
+                            properly and fully implemented in the source code below?""")
+    ),
+    is_complete: str = Field(
+        alias='is_complete',
         description="Whether the requirement is satisfied in the code (TRUE) or not (FALSE)"
     )
 
@@ -66,6 +68,10 @@ class FunctionalityTest(DataElem):
         alias='req_id',
         description="The numbered ID of the related requirement being tested"
     )
+    title: str = Field(
+        alias='test_title',
+        description="A unique, brief and descriptive title of the test"
+    )
     details: str = Field(
         alias='test_details',
         description="The detailed description of what the test does"
@@ -81,6 +87,49 @@ class FunctionalityTest(DataElem):
         alias='exp_result',
         description="The expected result of running the test"
     )
+
+
+class TestStatus(DataElem):
+    _element: str = "file"
+    _purpose= dedent("""to list the status of each functionality test (pass or fail)
+                     to""")
+    tid: int = Field(alias='test_id', description="The numbered ID of the test that this function is associated with.")
+    analysis: str = Field(
+        alias='test_imp_analysis', 
+        description=dedent("""
+                            Take your time, and think through the following: was this test 
+                            properly and fully included in the test script below?""")
+    ),
+    is_complete: str = Field(
+        alias='is_complete', 
+        description="Whether the test was fully implemented (TRUE) or not (FALSE)"
+    ),
+    func: str = Field(
+        alias='function_name', 
+        description=dedent("""
+                            Take your time, and think through the following: was this test 
+                            included in the test script below?""")
+    )
+
+
+class CodeSegment(DataElem):
+    _element: str = "code_segment"
+    _purpose = dedent("""
+                     to represent a semantically meaningful segment of source code, including its file origin,
+                     description, and content""")
+    file_name: str = Field(
+        alias='file_name',
+        description="The name of the source file this segment comes from"
+    )
+    description: str = Field(
+        alias='segment_description',
+        description="Detailed description of the segment's functionality and purpose"
+    )
+    content: str = Field(
+        alias='segment_content',
+        description="The source code contained within this segment"
+    )
+    _vector: list[float]
 
 
 ### TOOL ELEMENTS ###
@@ -115,5 +164,4 @@ class Command(ToolElem):
     hallucinate a value for it...
     """
     _output: str  
-
 
