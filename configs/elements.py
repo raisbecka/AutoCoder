@@ -165,3 +165,39 @@ class Command(ToolElem):
     """
     _output: str  
 
+
+class Task(DataElem):
+    _element: str = "task"
+    _purpose = dedent("""
+                     to represent a task that needs to be completed, including its description,
+                     conditions, expected elements, constraints, and dependencies""")
+    title: str = Field(
+        alias='task_title',
+        description="The title of the task"
+    )
+    description: str = Field(
+        alias='task_description', 
+        description="Detailed description of what the task entails"
+    )
+    start_condition: str = Field(
+        alias='start_condition',
+        description="The condition that must be met to start the task"
+    )
+    end_condition: str = Field(
+        alias='end_condition',
+        description="The condition that must be met to consider the task complete"
+    )
+    expected_elements: str = Field(
+        alias='expected_elements',
+        description="The elements expected to be produced by this task"
+    )
+    constraints: ManyOptional[List[str]] = Field(
+        alias='constraints',
+        description="Optional list of constraints that apply to this task",
+        default=None
+    )
+    dependencies: ManyOptional[List[str]] = Field(
+        alias='dependencies',
+        description="Optional list of dependencies this task relies on",
+        default=None
+    )
